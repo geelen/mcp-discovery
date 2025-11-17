@@ -144,6 +144,11 @@ export async function runBenchmark(config: BenchmarkConfig): Promise<number> {
         )
       );
 
+      // Print failed runs immediately
+      if (!pass) {
+        console.log(`${FAILURE} ${runDir}`);
+      }
+
       durations.push(durationMs);
       if (pass) passCount++;
       else failCount++;
