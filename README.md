@@ -7,7 +7,14 @@ LLM-powered inference with local MCP tool discovery and execution.
 Requires [Bun](https://bun.sh) runtime.
 
 ```bash
+# Install dependencies
 bun install
+
+# Run directly with bunx (from npm registry in future)
+bunx mcp-discovery
+
+# Or run locally
+bun run mcp-discovery
 ```
 
 ## Usage
@@ -24,7 +31,7 @@ Requirements:
   - MCP servers configured in mcp/servers.json
 
 Usage:
-  bun run.ts <strategy> -m <provider:model> [-s <server1,server2,...>] -p "<prompt>"
+  mcp-discovery <strategy> -m <provider:model> [-s <server1,server2,...>] -p "<prompt>"
 
 Arguments:
   <strategy>           Tool discovery strategy (currently: 'all')
@@ -55,24 +62,24 @@ Providers:
 
 Examples:
   # Simple query without tools
-  bun run.ts all \
+  mcp-discovery all \
     -m groq:llama-3.3-70b-versatile \
     -p "What is 2+2?"
 
   # Query PowerPoint file with Groq
-  bun run.ts all \
+  mcp-discovery all \
     -m groq:llama-3.3-70b-versatile \
     -s ppt \
     -p "What is the title of the first slide of /tmp/demo.ppt"
 
   # Use multiple MCP servers
-  bun run.ts all \
+  mcp-discovery all \
     -m groq:llama-3.3-70b-versatile \
     -s ppt,word,chart \
     -p "Summarize the documents in /tmp"
 
   # Query with all configured servers
-  bun run.ts all \
+  mcp-discovery all \
     -m groq:llama-3.3-70b-versatile \
     -s ppt,playwright,word,chart,trends \
     -p "What is trending in AI this week?"

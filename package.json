@@ -2,6 +2,9 @@
   "name": "mcp-discovery",
   "version": "0.1.1",
   "type": "module",
+  "bin": {
+    "mcp-discovery": "./mcp-discovery/index.ts"
+  },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.4"
   },

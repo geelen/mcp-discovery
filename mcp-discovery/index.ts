@@ -4,17 +4,17 @@ import { parseArgs } from "util";
 import { readFile } from "fs/promises";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
-import { loadProvidersFile, getProviderConfig, getApiKey } from "./src/config/loadProviderConfig.js";
-import { loadMcpServersFile, filterServersByIds } from "./src/config/loadMcpServers.js";
-import { startServersFromConfig, stopAllServers } from "./src/mcp/stdioClient.js";
-import { allDiscoveryStrategy } from "./src/strategies/discovery/all.js";
-import { createCompletionsAdapter } from "./src/adapters/completions/index.js";
-import { runToolLoop } from "./src/core/toolLoop.js";
+import { loadProvidersFile, getProviderConfig, getApiKey } from "../src/config/loadProviderConfig.js";
+import { loadMcpServersFile, filterServersByIds } from "../src/config/loadMcpServers.js";
+import { startServersFromConfig, stopAllServers } from "../src/mcp/stdioClient.js";
+import { allDiscoveryStrategy } from "../src/strategies/discovery/all.js";
+import { createCompletionsAdapter } from "../src/adapters/completions/index.js";
+import { runToolLoop } from "../src/core/toolLoop.js";
 
 async function loadUsageFromReadme(): Promise<string> {
   try {
     const __dirname = dirname(fileURLToPath(import.meta.url));
-    const readmePath = join(__dirname, "README.md");
+    const readmePath = join(__dirname, "..", "README.md");
     const readme = await readFile(readmePath, "utf-8");
 
     const match = readme.match(/```\n([\s\S]*?)\n```/);
@@ -85,8 +85,8 @@ async function main() {
   }
 
   const __dirname = dirname(fileURLToPath(import.meta.url));
-  const providersPath = join(__dirname, "providers.json");
-  const serversPath = join(__dirname, "mcp", "servers.json");
+  const providersPath = join(__dirname, "..", "providers.json");
+  const serversPath = join(__dirname, "..", "mcp", "servers.json");
 
   let providers, providerConfig, apiKey;
   
