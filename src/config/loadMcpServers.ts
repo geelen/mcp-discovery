@@ -7,10 +7,14 @@ export async function loadMcpServersFile(path: string): Promise<McpServerConfig[
 }
 
 export function filterServersByIds(servers: McpServerConfig[], serverIds: string[]): McpServerConfig[] {
+  const availableIds = servers.map((s) => s.id);
   const filtered = serverIds.map((id) => {
     const server = servers.find((s) => s.id === id);
     if (!server) {
-      throw new Error(`MCP server '${id}' not found in servers.json`);
+      throw new Error(
+        `MCP server '${id}' not found in mcp/servers.json\n` +
+        `       Available servers: ${availableIds.join(", ")}`
+      );
     }
     return server;
   });

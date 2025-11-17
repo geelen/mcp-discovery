@@ -9,7 +9,11 @@ export async function loadProvidersFile(path: string): Promise<ProvidersFile> {
 export function getProviderConfig(providers: ProvidersFile, providerKey: string): ProviderConfig {
   const config = providers[providerKey];
   if (!config) {
-    throw new Error(`Provider '${providerKey}' not found in providers.json`);
+    const availableProviders = Object.keys(providers).join(", ");
+    throw new Error(
+      `Provider '${providerKey}' not found in providers.json\n` +
+      `       Available providers: ${availableProviders}`
+    );
   }
   return config;
 }
@@ -17,7 +21,10 @@ export function getProviderConfig(providers: ProvidersFile, providerKey: string)
 export function getApiKey(providerConfig: ProviderConfig): string {
   const apiKey = process.env[providerConfig.apiKeyEnv];
   if (!apiKey) {
-    throw new Error(`Environment variable ${providerConfig.apiKeyEnv} is not set`);
+    throw new Error(
+      `Environment variable ${providerConfig.apiKeyEnv} is not set\n` +
+      `       Please set it with: export ${providerConfig.apiKeyEnv}=your_api_key`
+    );
   }
   return apiKey;
 }

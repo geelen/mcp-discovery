@@ -56,20 +56,32 @@ async function main() {
   const serversSpec = values.s as string | undefined;
   const prompt = values.p as string | undefined;
 
-  if (!strategy || !modelSpec || !serversSpec || !prompt) {
-    console.error("Error: Missing required arguments\n");
-    console.error("Run with --help for usage information\n");
+  const missingArgs: string[] = [];
+  if (!strategy) missingArgs.push("<strategy> (positional argument: 'all', 'browse', or 'search')");
+  if (!modelSpec) missingArgs.push("-m <provider:model> (e.g., -m groq:llama-3.3-70b-versatile)");
+  if (!serversSpec) missingArgs.push("-s <servers> (e.g., -s ppt,word,chart)");
+  if (!prompt) missingArgs.push("-p <prompt> (e.g., -p \"What is the title?\")");
+
+  if (missingArgs.length > 0) {
+    console.error("Error: Missing required arguments:\n");
+    for (const arg of missingArgs) {
+      console.error(`  • ${arg}`);
+    }
+    console.error("\nRun with --help for usage information\n");
     process.exit(1);
   }
 
   if (strategy !== "all") {
-    console.error(`Error: Strategy '${strategy}' is not yet implemented. Only 'all' is supported.\n`);
+    console.error(`Error: Strategy '${strategy}' is not yet implemented.`);
+    console.error(`       Only 'all' is currently supported.\n`);
     process.exit(1);
   }
 
   const [providerKey, modelName] = modelSpec.split(":", 2);
   if (!providerKey || !modelName) {
-    console.error("Error: Model must be in format 'provider:model', e.g., 'groq:llama-3.1-70b'\n");
+    console.error(`Error: Invalid model specification '${modelSpec}'`);
+    console.error(`       Model must be in format 'provider:model'`);
+    console.error(`       Example: groq:llama-3.3-70b-versatile\n`);
     process.exit(1);
   }
 
@@ -79,12 +91,19 @@ async function main() {
   const providersPath = join(__dirname, "providers.json");
   const serversPath = join(__dirname, "mcp", "servers.json");
 
-  const providers = await loadProvidersFile(providersPath);
-  const providerConfig = getProviderConfig(providers, providerKey);
-  const apiKey = getApiKey(providerConfig);
+  let providers, providerConfig, apiKey, allServers, selectedServers;
+  
+  try {
+    providers = await loadProvidersFile(providersPath);
+    providerConfig = getProviderConfig(providers, providerKey);
+    apiKey = getApiKey(providerConfig);
 
-  const allServers = await loadMcpServersFile(serversPath);
-  const selectedServers = filterServersByIds(allServers, serverIds);
+    allServers = await loadMcpServersFile(serversPath);
+    selectedServers = filterServersByIds(allServers, serverIds);
+  } catch (error) {
+    console.error(`Error: ${error instanceof Error ? error.message : String(error)}`);
+    process.exit(1);
+  }
 
   console.log(`Starting ${selectedServers.length} MCP server(s)...`);
   const mcpClients = await startServersFromConfig(selectedServers);
