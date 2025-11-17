@@ -7,15 +7,10 @@ LLM-powered inference with local MCP tool discovery and execution.
 Requires [Bun](https://bun.sh) runtime.
 
 ```bash
-# Install dependencies
-bun install
-
-# Run directly with bunx (from npm registry in future)
 bunx mcp-discovery
-
-# Or run locally
-bun run mcp-discovery
 ```
+
+No installation needed - `bunx` will download and run the latest version automatically.
 
 ## Usage
 
@@ -31,7 +26,7 @@ Requirements:
   - MCP servers configured in mcp/servers.json
 
 Usage:
-  mcp-discovery <strategy> -m <provider:model> [-s <server1,server2,...>] -p "<prompt>"
+  bunx mcp-discovery <strategy> -m <provider:model> [-s <server1,server2,...>] -p "<prompt>"
 
 Arguments:
   <strategy>           Tool discovery strategy (currently: 'all')
@@ -62,24 +57,24 @@ Providers:
 
 Examples:
   # Simple query without tools
-  mcp-discovery all \
+  bunx mcp-discovery all \
     -m groq:llama-3.3-70b-versatile \
     -p "What is 2+2?"
 
   # Query PowerPoint file with Groq
-  mcp-discovery all \
+  bunx mcp-discovery all \
     -m groq:llama-3.3-70b-versatile \
     -s ppt \
     -p "What is the title of the first slide of /tmp/demo.ppt"
 
   # Use multiple MCP servers
-  mcp-discovery all \
+  bunx mcp-discovery all \
     -m groq:llama-3.3-70b-versatile \
     -s ppt,word,chart \
     -p "Summarize the documents in /tmp"
 
   # Query with all configured servers
-  mcp-discovery all \
+  bunx mcp-discovery all \
     -m groq:llama-3.3-70b-versatile \
     -s ppt,playwright,word,chart,trends \
     -p "What is trending in AI this week?"
@@ -123,6 +118,39 @@ src/
 ├── mcp/            MCP client implementation
 └── core/           Core tool execution loop
 ```
+
+## Contributing
+
+To develop on this project locally:
+
+```bash
+# Clone the repository
+git clone <repository-url>
+cd mcp-discovery
+
+# Install dependencies
+bun install
+
+# Run locally during development
+bun run mcp-discovery all -m groq:llama-3.3-70b-versatile -p "Test"
+
+# The command runs from mcp-discovery/index.ts
+# All source code is in the src/ directory
+```
+
+### Project Structure
+
+- `mcp-discovery/index.ts` - CLI entrypoint
+- `src/` - Source code modules
+- `providers.json` - LLM provider configuration
+- `mcp/servers.json` - MCP server configuration
+
+### Development Workflow
+
+1. Make changes to source files
+2. Test with `bun run mcp-discovery`
+3. Commit changes with descriptive messages
+4. All progress messages go to stderr, JSON output to stdout
 
 ## License
 
