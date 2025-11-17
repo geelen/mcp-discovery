@@ -98,7 +98,17 @@ Edit [mcp/servers.json](file:///Users/glenmaddern/src/projects/mcp-discovery/mcp
 - `command`: Executable command
 - `args`: Command arguments
 - `env`: Environment variables
-- `cwd`: Working directory
+
+The `LIVEMCP_DATA` environment variable is automatically set to point to `mcp/data/` which contains sample test files.
+
+### Test Data
+
+Sample data files are included in [mcp/data/](file:///Users/glenmaddern/src/projects/mcp-discovery/mcp/data/) for testing:
+- `ppt/` - PowerPoint presentations
+- `word/` - Word documents  
+- `html/` - HTML files for browser testing
+
+These files are from the [LiveMCPBench](https://github.com/livemcp/LiveMCPBench) annotated data set.
 
 ## Architecture
 
