@@ -133,6 +133,7 @@ async function main() {
     registry: toolRegistry,
     model: modelName,
     userPrompt: prompt,
+    logToStderr: true,
   });
 
   await stopAllServers(mcpClients);

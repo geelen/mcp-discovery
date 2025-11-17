@@ -29,9 +29,11 @@ export async function runToolLoop(params: {
   userPrompt: string;
   maxIterations?: number;
   temperature?: number;
+  logToStderr?: boolean;
 }): Promise<CompletionsResponse | CompletionsError> {
   const maxIterations = params.maxIterations ?? 10;
   const temperature = params.temperature ?? 0.2;
+  const logToStderr = params.logToStderr ?? false;
 
   const messages: Message[] = [
     {
@@ -61,6 +63,10 @@ export async function runToolLoop(params: {
     const toolCalls = assistantMessage.tool_calls;
     if (!toolCalls || toolCalls.length === 0) {
       return response;
+    }
+
+    if (logToStderr) {
+      console.error(JSON.stringify(response));
     }
 
     for (const toolCall of toolCalls) {
