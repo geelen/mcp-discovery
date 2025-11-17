@@ -3,7 +3,7 @@
     "adapter": "completions",
     "baseURL": "https://api.groq.com/openai/v1",
     "apiKeyEnv": "GROQ_API_KEY",
-    "defaultModel": "llama-3.1-70b-versatile"
+    "defaultModel": "llama-3.3-70b-versatile"
   },
   "openai": {
     "adapter": "completions",
