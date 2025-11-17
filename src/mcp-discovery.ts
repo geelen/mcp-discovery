@@ -10,6 +10,7 @@ import { startServersFromConfig, stopAllServers } from "./mcp/stdioClient.js";
 import { allDiscoveryStrategy } from "./strategies/discovery/all.js";
 import { createCompletionsAdapter } from "./adapters/completions/index.js";
 import { runToolLoop } from "./core/toolLoop.js";
+import { runBenchmark } from "./core/benchmark.js";
 
 async function loadUsageFromReadme(): Promise<string> {
   try {
@@ -40,6 +41,8 @@ async function main() {
       m: { type: "string" },
       s: { type: "string" },
       p: { type: "string" },
+      n: { type: "string" },
+      c: { type: "string" },
       help: { type: "boolean" },
     },
     allowPositionals: true,
@@ -84,6 +87,20 @@ async function main() {
     process.exit(1);
   }
 
+  // Parse benchmarking flags
+  const runs = Number(values.n ?? 1);
+  const concurrency = Number(values.c ?? 1);
+
+  if (isNaN(runs) || runs < 1) {
+    console.error(`Error: -n must be a positive integer, got: ${values.n}`);
+    process.exit(1);
+  }
+
+  if (isNaN(concurrency) || concurrency < 1) {
+    console.error(`Error: -c must be a positive integer, got: ${values.c}`);
+    process.exit(1);
+  }
+
   const __dirname = dirname(fileURLToPath(import.meta.url));
   const providersPath = join(__dirname, "..", "providers.json");
   const serversPath = join(__dirname, "..", "mcp", "servers.json");
@@ -99,13 +116,11 @@ async function main() {
     process.exit(1);
   }
 
-  let mcpClients = [];
-  let toolRegistry;
-
+  // Load MCP server configs
+  let selectedServers = [];
   if (serversSpec) {
     const serverIds = serversSpec.split(",").map((s) => s.trim());
-
-    let allServers, selectedServers;
+    let allServers;
     try {
       allServers = await loadMcpServersFile(serversPath);
       selectedServers = filterServersByIds(allServers, serverIds);
@@ -113,35 +128,58 @@ async function main() {
       console.error(`Error: ${error instanceof Error ? error.message : String(error)}`);
       process.exit(1);
     }
-
-    console.error(`Starting ${selectedServers.length} MCP server(s)...`);
-    mcpClients = await startServersFromConfig(selectedServers);
-
-    console.error("Discovering tools...");
-    toolRegistry = await allDiscoveryStrategy(mcpClients);
-    console.error(`Discovered ${toolRegistry.tools.length} tools`);
-  } else {
-    console.error("No MCP servers specified, running without tools");
-    toolRegistry = { tools: [], byName: new Map() };
   }
 
-  const adapter = createCompletionsAdapter(providerKey, providerConfig, apiKey);
+  // Branch between single run and benchmark mode
+  if (runs === 1) {
+    // Single run mode - original behavior
+    let mcpClients = [];
+    let toolRegistry;
 
-  console.error("Running inference...");
-  const result = await runToolLoop({
-    adapter,
-    registry: toolRegistry,
-    model: modelName,
-    userPrompt: prompt,
-    logToStderr: true,
-  });
+    if (selectedServers.length > 0) {
+      console.error(`Starting ${selectedServers.length} MCP server(s)...`);
+      mcpClients = await startServersFromConfig(selectedServers);
 
-  await stopAllServers(mcpClients);
+      console.error("Discovering tools...");
+      toolRegistry = await allDiscoveryStrategy(mcpClients);
+      console.error(`Discovered ${toolRegistry.tools.length} tools`);
+    } else {
+      console.error("No MCP servers specified, running without tools");
+      toolRegistry = { tools: [], byName: new Map() };
+    }
 
-  console.log(JSON.stringify(result, null, 2));
+    const adapter = createCompletionsAdapter(providerKey, providerConfig, apiKey);
 
-  if ("error" in result) {
-    process.exit(1);
+    console.error("Running inference...");
+    const result = await runToolLoop({
+      adapter,
+      registry: toolRegistry,
+      model: modelName,
+      userPrompt: prompt,
+      logToStderr: true,
+    });
+
+    await stopAllServers(mcpClients);
+
+    console.log(JSON.stringify(result, null, 2));
+
+    if ("error" in result) {
+      process.exit(1);
+    }
+  } else {
+    // Benchmark mode
+    const adapter = createCompletionsAdapter(providerKey, providerConfig, apiKey);
+
+    const exitCode = await runBenchmark({
+      runs,
+      concurrency,
+      adapter,
+      model: modelName,
+      prompt,
+      serverConfigs: selectedServers,
+    });
+
+    process.exit(exitCode);
   }
 }
 
