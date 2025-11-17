@@ -97,9 +97,9 @@ Edit [mcp/servers.json](file:///Users/glenmaddern/src/projects/mcp-discovery/mcp
 - `id`: Unique identifier
 - `command`: Executable command
 - `args`: Command arguments
-- `env`: Environment variables
+- `env`: Environment variables (optional)
 
-The `LIVEMCP_DATA` environment variable is automatically set to point to `mcp/data/` which contains sample test files.
+MCP servers are automatically started with their working directory set to `mcp/`, so relative paths like `data/ppt/file.pptx` work correctly.
 
 ### Test Data
 
