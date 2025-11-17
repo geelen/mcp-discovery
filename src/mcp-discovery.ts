@@ -12,6 +12,7 @@ import { createCompletionsAdapter } from "./adapters/completions/index.js";
 import { runToolLoop } from "./core/toolLoop.js";
 import { runBenchmark } from "./core/benchmark.js";
 import { runSingleInference } from "./core/singleRun.js";
+import { runPromptsFile } from "./core/runPromptsFile.js";
 
 async function loadUsageFromReadme(): Promise<string> {
   try {
@@ -45,6 +46,7 @@ async function main() {
       n: { type: "string" },
       c: { type: "string" },
       x: { type: "string", multiple: true },
+      i: { type: "string" },
       help: { type: "boolean" },
     },
     allowPositionals: true,
@@ -61,11 +63,23 @@ async function main() {
   const serversSpec = values.s as string | undefined;
   const prompt = values.p as string | undefined;
   const expectations = (values.x as string[] | undefined) || [];
+  const promptsFile = values.i as string | undefined;
+
+  // Check for incompatible flags
+  if (promptsFile && prompt) {
+    console.error("Error: Cannot use -i (prompts file) together with -p (prompt)\n");
+    process.exit(1);
+  }
+
+  if (promptsFile && expectations.length > 0) {
+    console.error("Error: Cannot use -i (prompts file) together with -x (expectations)\n");
+    process.exit(1);
+  }
 
   const missingArgs: string[] = [];
   if (!strategy) missingArgs.push("<strategy> (positional argument: 'all', 'browse', or 'search')");
   if (!modelSpec) missingArgs.push("-m <provider:model> (e.g., -m groq:llama-3.3-70b-versatile)");
-  if (!prompt) missingArgs.push("-p <prompt> (e.g., -p \"What is the title?\")");
+  if (!prompt && !promptsFile) missingArgs.push("-p <prompt> OR -i <prompts-file> (e.g., -p \"What is the title?\" or -i mcp/prompts.ts:0)");
 
   if (missingArgs.length > 0) {
     console.error("Error: Missing required arguments:\n");
@@ -133,8 +147,39 @@ async function main() {
     }
   }
 
-  // Branch between single run and benchmark mode
-  if (runs === 1) {
+  // Branch between prompts file mode, single run, and benchmark mode
+  if (promptsFile) {
+    // Prompts file mode
+    let mcpClients = [];
+    let toolRegistry;
+
+    if (selectedServers.length > 0) {
+      console.log(`Starting ${selectedServers.length} MCP server(s)...`);
+      mcpClients = await startServersFromConfig(selectedServers);
+
+      console.log("Discovering tools...");
+      toolRegistry = await allDiscoveryStrategy(mcpClients);
+      console.log(`Discovered ${toolRegistry.tools.length} tools`);
+    } else {
+      console.log("No MCP servers specified, running without tools");
+      toolRegistry = { tools: [], byName: new Map() };
+    }
+
+    const adapter = createCompletionsAdapter(providerKey, providerConfig, apiKey);
+    const cwd = process.cwd();
+
+    const exitCode = await runPromptsFile({
+      adapter,
+      registry: toolRegistry,
+      model: modelName,
+      promptsFileSpec: promptsFile,
+      cwd,
+    });
+
+    await stopAllServers(mcpClients);
+
+    process.exit(exitCode);
+  } else if (runs === 1) {
     // Single run mode - original behavior
     let mcpClients = [];
     let toolRegistry;
@@ -157,7 +202,7 @@ async function main() {
       adapter,
       registry: toolRegistry,
       model: modelName,
-      prompt,
+      prompt: prompt!,
       expectations: expectations.length > 0 ? expectations : undefined,
     });
 
