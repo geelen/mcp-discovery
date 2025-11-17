@@ -114,20 +114,20 @@ async function main() {
       process.exit(1);
     }
 
-    console.log(`Starting ${selectedServers.length} MCP server(s)...`);
+    console.error(`Starting ${selectedServers.length} MCP server(s)...`);
     mcpClients = await startServersFromConfig(selectedServers);
 
-    console.log("Discovering tools...");
+    console.error("Discovering tools...");
     toolRegistry = await allDiscoveryStrategy(mcpClients);
-    console.log(`Discovered ${toolRegistry.tools.length} tools\n`);
+    console.error(`Discovered ${toolRegistry.tools.length} tools`);
   } else {
-    console.log("No MCP servers specified, running without tools\n");
+    console.error("No MCP servers specified, running without tools");
     toolRegistry = { tools: [], byName: new Map() };
   }
 
   const adapter = createCompletionsAdapter(providerKey, providerConfig, apiKey);
 
-  console.log("Running tool loop...\n");
+  console.error("Running inference...");
   const result = await runToolLoop({
     adapter,
     registry: toolRegistry,
@@ -138,13 +138,11 @@ async function main() {
   await stopAllServers(mcpClients);
 
   if ("error" in result) {
-    console.error("\nError:", JSON.stringify(result.error, null, 2));
+    console.error("Error:", JSON.stringify(result.error, null, 2));
     process.exit(1);
   }
 
-  console.log("\nFinal response:");
-  console.log(result.message.content || "(no content)");
-  console.log();
+  console.log(JSON.stringify(result, null, 2));
 }
 
 main().catch((error) => {
