@@ -30,10 +30,12 @@ export async function runToolLoop(params: {
   maxIterations?: number;
   temperature?: number;
   logToStderr?: boolean;
+  onStep?: (response: CompletionsResponse, iteration: number) => void;
 }): Promise<CompletionsResponse | CompletionsError> {
   const maxIterations = params.maxIterations ?? 10;
   const temperature = params.temperature ?? 0.2;
   const logToStderr = params.logToStderr ?? false;
+  const onStep = params.onStep;
 
   const messages: Message[] = [
     {
@@ -68,6 +70,10 @@ export async function runToolLoop(params: {
     const toolCalls = assistantMessage.tool_calls;
     if (!toolCalls || toolCalls.length === 0) {
       return response;
+    }
+
+    if (onStep) {
+      onStep(response, iteration);
     }
 
     if (logToStderr) {
