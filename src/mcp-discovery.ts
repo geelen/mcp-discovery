@@ -11,6 +11,7 @@ import { allDiscoveryStrategy } from "./strategies/discovery/all.js";
 import { createCompletionsAdapter } from "./adapters/completions/index.js";
 import { runToolLoop } from "./core/toolLoop.js";
 import { runBenchmark } from "./core/benchmark.js";
+import { runSingleInference } from "./core/singleRun.js";
 
 async function loadUsageFromReadme(): Promise<string> {
   try {
@@ -152,22 +153,17 @@ async function main() {
 
     const adapter = createCompletionsAdapter(providerKey, providerConfig, apiKey);
 
-    console.log("Running inference...");
-    const result = await runToolLoop({
+    const exitCode = await runSingleInference({
       adapter,
       registry: toolRegistry,
       model: modelName,
-      userPrompt: prompt,
-      logToStderr: true,
+      prompt,
+      expectations: expectations.length > 0 ? expectations : undefined,
     });
 
     await stopAllServers(mcpClients);
 
-    console.log(JSON.stringify(result, null, 2));
-
-    if ("error" in result) {
-      process.exit(1);
-    }
+    process.exit(exitCode);
   } else {
     // Benchmark mode
     const adapter = createCompletionsAdapter(providerKey, providerConfig, apiKey);
