@@ -5,6 +5,7 @@ import { createWriteStream } from "fs";
 import type { CompletionsAdapter, McpServerConfig, ProviderConfig } from "../types/index.js";
 import { createServerPools, destroyServerPools, type ServerPool } from "../mcp/pools.js";
 import { runToolLoop } from "./toolLoop.js";
+import { checkExpectations } from "../util/expectations.js";
 
 const GREEN = "\x1b[32m";
 const RED = "\x1b[31m";
@@ -21,6 +22,7 @@ type BenchmarkConfig = {
   model: string;
   prompt: string;
   serverConfigs: McpServerConfig[];
+  expectations?: string[];
 };
 
 type RunResult = {
@@ -40,6 +42,10 @@ export async function runBenchmark(config: BenchmarkConfig): Promise<number> {
   console.error(`\n📁 Logs directory: ${tempRoot}\n`);
 
   console.error(`${BLUE}Running ${config.runs} inference(s) with concurrency ${config.concurrency}...${RESET}\n`);
+
+  if (config.expectations && config.expectations.length > 0) {
+    console.error(`${BLUE}Expectations:${RESET} ${config.expectations.join(", ")}\n`);
+  }
 
   const pools = await createServerPools(config.serverConfigs, config.concurrency);
   console.error(`Started ${pools.length} server pool(s), discovered ${pools[0]?.registry.tools.length ?? 0} tools\n`);
@@ -92,7 +98,18 @@ export async function runBenchmark(config: BenchmarkConfig): Promise<number> {
           pass = false;
         } else {
           await writeFile(join(runDir, "response.json"), JSON.stringify(result, null, 2));
-          pass = true;
+          
+          if (config.expectations && config.expectations.length > 0) {
+            const answer = config.adapter.extractAnswer(result);
+            if (!answer) {
+              pass = false;
+            } else {
+              const { allFound } = checkExpectations(answer, config.expectations);
+              pass = allFound;
+            }
+          } else {
+            pass = true;
+          }
         }
       } catch (error) {
         await writeFile(
@@ -166,13 +183,13 @@ export async function runBenchmark(config: BenchmarkConfig): Promise<number> {
   console.error(`   Total runs:    ${config.runs}`);
   console.error(`   ${SUCCESS} Passes:      ${GREEN}${passCount}${RESET}`);
   console.error(`   ${FAILURE} Failures:    ${RED}${failCount}${RESET}`);
-  console.error(`   Pass rate:     ${((passCount / config.runs) * 100).toFixed(1)}%`);
-  console.error(`\n⏱  Latency:`);
-  console.error(`   Mean:          ${mean.toFixed(0)}ms`);
-  console.error(`   P50:           ${p50.toFixed(0)}ms`);
-  console.error(`   P95:           ${p95.toFixed(0)}ms`);
-  console.error(`\n📁 Logs: ${tempRoot}`);
-  console.error("\n" + "═".repeat(60) + "\n");
+  console.error(`   Pass rate:     ${((passCount / config.runs) * 100).toFixed(1)}%${RESET}`);
+  console.error(`\n⏱  Latency:${RESET}`);
+  console.error(`   Mean:          ${mean.toFixed(0)}ms${RESET}`);
+  console.error(`   P50:           ${p50.toFixed(0)}ms${RESET}`);
+  console.error(`   P95:           ${p95.toFixed(0)}ms${RESET}`);
+  console.error(`\n📁 Logs: ${tempRoot}${RESET}`);
+  console.error("\n" + "═".repeat(60) + "\n" + RESET);
 
   return failCount === 0 ? 0 : 1;
 }

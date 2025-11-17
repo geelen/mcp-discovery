@@ -55,6 +55,10 @@ Arguments:
   -c <concurrency>     [Optional] Number of concurrent workers (default: 1)
                        Each worker maintains its own MCP server pool
 
+  -x <expectation>     [Optional] Expected text in <answer> block (multiple allowed)
+                       When provided, pass/fail based on whether all expectations found
+                       Text is normalized (case-insensitive, normalized punctuation)
+
   --help               Show this help message
 
 Modes:
@@ -98,6 +102,13 @@ Examples:
     -m groq:llama-3.1-8b-instant \
     -p "What is 5+5?" \
     -n 100 -c 10
+
+  # Benchmark with expectations (checks for specific text in answer)
+  bunx mcp-discovery all \
+    -m groq:llama-3.3-70b-versatile \
+    -p "What is 2 + 2. Put only the answer between <answer></answer> tags." \
+    -n 20 -c 4 \
+    -x "4"
 
   # Extract just the content from single run
   bunx mcp-discovery all \

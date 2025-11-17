@@ -31,8 +31,34 @@ type OpenAiTool = {
   };
 };
 
+function extractAnswerFromCompletions(response: CompletionsResponse | CompletionsError): string {
+  try {
+    if ("error" in response) {
+      return "";
+    }
+
+    if (!response.choices || response.choices.length === 0) {
+      return "";
+    }
+
+    const lastChoice = response.choices[response.choices.length - 1];
+    const text = lastChoice.message?.content || "";
+
+    if (!text) return "";
+
+    const matches = Array.from(text.matchAll(/<answer>([\s\S]*?)<\/answer>/gi));
+    if (matches.length === 0) return "";
+
+    return matches[matches.length - 1][1].trim();
+  } catch (error) {
+    return "";
+  }
+}
+
 export function createOpenAiLikeAdapter(baseURL: string, apiKey: string): CompletionsAdapter {
   return {
+    extractAnswer: extractAnswerFromCompletions,
+
     async complete(request: CompletionsRequest): Promise<CompletionsResponse | CompletionsError> {
       const openaiMessages: OpenAiMessage[] = request.messages.map((msg) => ({
         role: msg.role,

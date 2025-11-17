@@ -92,6 +92,7 @@ export type CompletionsError = {
 
 export type CompletionsAdapter = {
   complete: (request: CompletionsRequest) => Promise<CompletionsResponse | CompletionsError>;
+  extractAnswer: (response: CompletionsResponse | CompletionsError) => string;
 };
 
 export type McpServerConfig = {

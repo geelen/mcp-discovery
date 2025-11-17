@@ -43,6 +43,7 @@ async function main() {
       p: { type: "string" },
       n: { type: "string" },
       c: { type: "string" },
+      x: { type: "string", multiple: true },
       help: { type: "boolean" },
     },
     allowPositionals: true,
@@ -58,6 +59,7 @@ async function main() {
   const modelSpec = values.m as string | undefined;
   const serversSpec = values.s as string | undefined;
   const prompt = values.p as string | undefined;
+  const expectations = (values.x as string[] | undefined) || [];
 
   const missingArgs: string[] = [];
   if (!strategy) missingArgs.push("<strategy> (positional argument: 'all', 'browse', or 'search')");
@@ -177,6 +179,7 @@ async function main() {
       model: modelName,
       prompt,
       serverConfigs: selectedServers,
+      expectations: expectations.length > 0 ? expectations : undefined,
     });
 
     process.exit(exitCode);
