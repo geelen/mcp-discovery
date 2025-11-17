@@ -152,11 +152,11 @@ export async function runBenchmark(config: BenchmarkConfig): Promise<number> {
       const completed = passCount + failCount;
       if (process.stderr.isTTY) {
         process.stderr.write(
-          `\r${completed}/${config.runs} | ${SUCCESS}${passCount} ${FAILURE}${failCount}`
+          `\r${completed}/${config.runs} | ${SUCCESS}${passCount} ${FAILURE}${failCount}${RESET}`
         );
       } else {
         if (completed % 10 === 0 || completed === config.runs) {
-          console.error(`Progress: ${completed}/${config.runs} | pass: ${passCount} fail: ${failCount}`);
+          console.error(`Progress: ${completed}/${config.runs} | pass: ${passCount} fail: ${failCount}${RESET}`);
         }
       }
     }
@@ -164,9 +164,9 @@ export async function runBenchmark(config: BenchmarkConfig): Promise<number> {
 
   await Promise.all(workers);
 
-  // Clear progress line
+  // Clear progress line and reset colors
   if (process.stderr.isTTY) {
-    process.stderr.write("\r\x1b[K");
+    process.stderr.write(`\r\x1b[K${RESET}`);
   }
 
   await destroyServerPools(pools);
