@@ -26,7 +26,11 @@ Requirements:
   - MCP servers configured in mcp/servers.json
 
 Usage:
-  bunx mcp-discovery <strategy> -m <provider:model> [-s <server1,server2,...>] -p "<prompt>"
+  Single run:
+    bunx mcp-discovery <strategy> -m <provider:model> [-s <servers>] -p "<prompt>"
+
+  Benchmark mode:
+    bunx mcp-discovery <strategy> -m <provider:model> [-s <servers>] -p "<prompt>" -n <runs> [-c <concurrency>]
 
 Arguments:
   <strategy>           Tool discovery strategy (currently: 'all')
@@ -45,7 +49,22 @@ Arguments:
 
   -p <prompt>          User prompt to send to the LLM
 
+  -n <runs>            [Optional] Number of times to run (default: 1)
+                       If > 1, enters benchmark mode with statistics
+
+  -c <concurrency>     [Optional] Number of concurrent workers (default: 1)
+                       Each worker maintains its own MCP server pool
+
   --help               Show this help message
+
+Modes:
+  Single run (n=1):    Outputs complete JSON response to stdout
+                       Progress messages go to stderr
+
+  Benchmark (n>1):     Runs multiple inferences concurrently
+                       Shows progress, statistics, and latency metrics
+                       Saves per-run logs to temp directory
+                       Returns exit code 0 if all pass, 1 if any fail
 
 Providers:
   Configure in providers.json. Currently supported:
@@ -56,28 +75,35 @@ Providers:
   - groq-responses (adapter: responses, stub)
 
 Examples:
-  # Simple query without tools
+  # Single run - simple query
   bunx mcp-discovery all \
     -m groq:llama-3.3-70b-versatile \
     -p "What is 2+2?"
 
-  # Query bundled test PowerPoint file (using relative path)
+  # Single run - query bundled PowerPoint file (relative path)
   bunx mcp-discovery all \
     -m groq:llama-3.3-70b-versatile \
     -s ppt \
     -p "What is the title of data/ppt/build_effective_agents.pptx?"
 
-  # Query bundled Word documents (using relative path)
+  # Benchmark - test reliability with 50 runs
   bunx mcp-discovery all \
     -m groq:llama-3.3-70b-versatile \
-    -s word \
-    -p "Summarize data/word/exchange.docx"
+    -s ppt \
+    -p "What is the title of data/ppt/build_effective_agents.pptx?" \
+    -n 50 -c 8
 
-  # Use multiple MCP servers together
+  # Benchmark - high concurrency stress test
+  bunx mcp-discovery all \
+    -m groq:llama-3.1-8b-instant \
+    -p "What is 5+5?" \
+    -n 100 -c 10
+
+  # Extract just the content from single run
   bunx mcp-discovery all \
     -m groq:llama-3.3-70b-versatile \
-    -s ppt,word \
-    -p "List all files in the data directory"
+    -p "Hello" \
+    2>/dev/null | jq -r '.choices[0].message.content'
 ```
 
 ## Configuration
