@@ -59,7 +59,6 @@ async function main() {
   const missingArgs: string[] = [];
   if (!strategy) missingArgs.push("<strategy> (positional argument: 'all', 'browse', or 'search')");
   if (!modelSpec) missingArgs.push("-m <provider:model> (e.g., -m groq:llama-3.3-70b-versatile)");
-  if (!serversSpec) missingArgs.push("-s <servers> (e.g., -s ppt,word,chart)");
   if (!prompt) missingArgs.push("-p <prompt> (e.g., -p \"What is the title?\")");
 
   if (missingArgs.length > 0) {
@@ -85,32 +84,46 @@ async function main() {
     process.exit(1);
   }
 
-  const serverIds = serversSpec.split(",").map((s) => s.trim());
-
   const __dirname = dirname(fileURLToPath(import.meta.url));
   const providersPath = join(__dirname, "providers.json");
   const serversPath = join(__dirname, "mcp", "servers.json");
 
-  let providers, providerConfig, apiKey, allServers, selectedServers;
+  let providers, providerConfig, apiKey;
   
   try {
     providers = await loadProvidersFile(providersPath);
     providerConfig = getProviderConfig(providers, providerKey);
     apiKey = getApiKey(providerConfig);
-
-    allServers = await loadMcpServersFile(serversPath);
-    selectedServers = filterServersByIds(allServers, serverIds);
   } catch (error) {
     console.error(`Error: ${error instanceof Error ? error.message : String(error)}`);
     process.exit(1);
   }
 
-  console.log(`Starting ${selectedServers.length} MCP server(s)...`);
-  const mcpClients = await startServersFromConfig(selectedServers);
+  let mcpClients = [];
+  let toolRegistry;
 
-  console.log("Discovering tools...");
-  const toolRegistry = await allDiscoveryStrategy(mcpClients);
-  console.log(`Discovered ${toolRegistry.tools.length} tools\n`);
+  if (serversSpec) {
+    const serverIds = serversSpec.split(",").map((s) => s.trim());
+
+    let allServers, selectedServers;
+    try {
+      allServers = await loadMcpServersFile(serversPath);
+      selectedServers = filterServersByIds(allServers, serverIds);
+    } catch (error) {
+      console.error(`Error: ${error instanceof Error ? error.message : String(error)}`);
+      process.exit(1);
+    }
+
+    console.log(`Starting ${selectedServers.length} MCP server(s)...`);
+    mcpClients = await startServersFromConfig(selectedServers);
+
+    console.log("Discovering tools...");
+    toolRegistry = await allDiscoveryStrategy(mcpClients);
+    console.log(`Discovered ${toolRegistry.tools.length} tools\n`);
+  } else {
+    console.log("No MCP servers specified, running without tools\n");
+    toolRegistry = { tools: [], byName: new Map() };
+  }
 
   const adapter = createCompletionsAdapter(providerKey, providerConfig, apiKey);
 

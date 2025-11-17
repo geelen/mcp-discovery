@@ -24,7 +24,7 @@ Requirements:
   - MCP servers configured in mcp/servers.json
 
 Usage:
-  bun run.ts <strategy> -m <provider:model> -s <server1,server2,...> -p "<prompt>"
+  bun run.ts <strategy> -m <provider:model> [-s <server1,server2,...>] -p "<prompt>"
 
 Arguments:
   <strategy>           Tool discovery strategy (currently: 'all')
@@ -37,8 +37,9 @@ Arguments:
                        Examples: groq:llama-3.1-70b-versatile
                                  openai:gpt-4o-mini
 
-  -s <servers>         Comma-separated list of MCP server IDs
+  -s <servers>         [Optional] Comma-separated list of MCP server IDs
                        Available: ppt, playwright, word, chart, trends
+                       If not provided, runs without tools
 
   -p <prompt>          User prompt to send to the LLM
 
@@ -53,21 +54,26 @@ Providers:
   - groq-responses (adapter: responses, stub)
 
 Examples:
+  # Simple query without tools
+  bun run.ts all \
+    -m groq:llama-3.3-70b-versatile \
+    -p "What is 2+2?"
+
   # Query PowerPoint file with Groq
   bun run.ts all \
-    -m groq:llama-3.1-70b-versatile \
+    -m groq:llama-3.3-70b-versatile \
     -s ppt \
     -p "What is the title of the first slide of /tmp/demo.ppt"
 
   # Use multiple MCP servers
   bun run.ts all \
-    -m groq:llama-3.1-70b-versatile \
+    -m groq:llama-3.3-70b-versatile \
     -s ppt,word,chart \
     -p "Summarize the documents in /tmp"
 
   # Query with all configured servers
   bun run.ts all \
-    -m groq:llama-3.1-70b-versatile \
+    -m groq:llama-3.3-70b-versatile \
     -s ppt,playwright,word,chart,trends \
     -p "What is trending in AI this week?"
 ```
