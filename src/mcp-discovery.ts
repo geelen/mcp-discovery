@@ -4,12 +4,12 @@ import { parseArgs } from "util";
 import { readFile } from "fs/promises";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
-import { loadProvidersFile, getProviderConfig, getApiKey } from "../src/config/loadProviderConfig.js";
-import { loadMcpServersFile, filterServersByIds } from "../src/config/loadMcpServers.js";
-import { startServersFromConfig, stopAllServers } from "../src/mcp/stdioClient.js";
-import { allDiscoveryStrategy } from "../src/strategies/discovery/all.js";
-import { createCompletionsAdapter } from "../src/adapters/completions/index.js";
-import { runToolLoop } from "../src/core/toolLoop.js";
+import { loadProvidersFile, getProviderConfig, getApiKey } from "./config/loadProviderConfig.js";
+import { loadMcpServersFile, filterServersByIds } from "./config/loadMcpServers.js";
+import { startServersFromConfig, stopAllServers } from "./mcp/stdioClient.js";
+import { allDiscoveryStrategy } from "./strategies/discovery/all.js";
+import { createCompletionsAdapter } from "./adapters/completions/index.js";
+import { runToolLoop } from "./core/toolLoop.js";
 
 async function loadUsageFromReadme(): Promise<string> {
   try {

@@ -141,15 +141,15 @@ cd mcp-discovery
 bun install
 
 # Run locally during development
-bun run mcp-discovery all -m groq:llama-3.3-70b-versatile -p "Test"
+bun src/mcp-discovery.ts all -m groq:llama-3.3-70b-versatile -p "Test"
 
-# The command runs from mcp-discovery/index.ts
-# All source code is in the src/ directory
+# The CLI entrypoint is src/mcp-discovery.ts
+# All other source code is in the src/ directory
 ```
 
 ### Project Structure
 
-- `mcp-discovery/index.ts` - CLI entrypoint
+- `src/mcp-discovery.ts` - CLI entrypoint
 - `src/` - Source code modules
 - `providers.json` - LLM provider configuration
 - `mcp/servers.json` - MCP server configuration
@@ -157,7 +157,7 @@ bun run mcp-discovery all -m groq:llama-3.3-70b-versatile -p "Test"
 ### Development Workflow
 
 1. Make changes to source files
-2. Test with `bun run mcp-discovery`
+2. Test with `bun src/mcp-discovery.ts`
 3. Commit changes with descriptive messages
 4. All progress messages go to stderr, JSON output to stdout
 

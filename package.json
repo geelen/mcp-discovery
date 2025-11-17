@@ -3,7 +3,7 @@
   "version": "0.1.4",
   "type": "module",
   "bin": {
-    "mcp-discovery": "./mcp-discovery/index.ts"
+    "mcp-discovery": "./src/mcp-discovery.ts"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.4"
