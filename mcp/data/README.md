@@ -6,7 +6,6 @@ This directory contains sample data files for testing MCP servers.
 
 - `ppt/` - PowerPoint presentations for the PPT MCP server
 - `word/` - Word documents for the Word MCP server
-- `html/` - HTML files for the Playwright MCP server
 
 ## Usage
 
