@@ -62,8 +62,7 @@ Arguments:
   --help               Show this help message
 
 Modes:
-  Single run (n=1):    Outputs complete JSON response to stdout
-                       Progress messages go to stderr
+  Single run (n=1):    Outputs progress then complete JSON response
 
   Benchmark (n>1):     Runs multiple inferences concurrently
                        Shows progress, statistics, and latency metrics
@@ -110,11 +109,11 @@ Examples:
     -n 20 -c 4 \
     -x "4"
 
-  # Extract just the content from single run
+  # Extract just the content from single run (filter out progress lines)
   bunx mcp-discovery all \
     -m groq:llama-3.3-70b-versatile \
     -p "Hello" \
-    2>/dev/null | jq -r '.choices[0].message.content'
+    | tail -1 | jq -r '.choices[0].message.content'
 ```
 
 ## Configuration
@@ -196,7 +195,7 @@ bun src/mcp-discovery.ts all -m groq:llama-3.3-70b-versatile -p "Test"
 1. Make changes to source files
 2. Test with `bun src/mcp-discovery.ts`
 3. Commit changes with descriptive messages
-4. All progress messages go to stderr, JSON output to stdout
+4. All output goes to stdout
 
 ## License
 
