@@ -1,0 +1,34 @@
+{
+  "groq": {
+    "adapter": "completions",
+    "baseURL": "https://api.groq.com/openai/v1",
+    "apiKeyEnv": "GROQ_API_KEY",
+    "defaultModel": "llama-3.1-70b-versatile"
+  },
+  "openai": {
+    "adapter": "completions",
+    "baseURL": "https://api.openai.com/v1",
+    "apiKeyEnv": "OPENAI_API_KEY",
+    "defaultModel": "gpt-4o-mini",
+    "stub": true
+  },
+  "openrouter": {
+    "adapter": "completions",
+    "baseURL": "https://openrouter.ai/api/v1",
+    "apiKeyEnv": "OPENROUTER_API_KEY",
+    "stub": true
+  },
+  "anthropic": {
+    "adapter": "messages",
+    "baseURL": "https://api.anthropic.com/v1",
+    "apiKeyEnv": "ANTHROPIC_API_KEY",
+    "defaultModel": "claude-3-5-sonnet-20241022",
+    "stub": true
+  },
+  "groq-responses": {
+    "adapter": "responses",
+    "baseURL": "https://api.groq.com",
+    "apiKeyEnv": "GROQ_API_KEY",
+    "stub": true
+  }
+}

@@ -1,0 +1,47 @@
+[
+  {
+    "id": "ppt",
+    "command": "uvx",
+    "args": ["--from", "office-powerpoint-mcp-server", "ppt_mcp_server"],
+    "env": {
+      "LIVEMCP_DATA": "/Users/glenmaddern/src/projects/LiveMCPBench/annotated_data"
+    },
+    "cwd": "/Users/glenmaddern/src/projects/LiveMCPBench"
+  },
+  {
+    "id": "playwright",
+    "command": "npx",
+    "args": ["-y", "@executeautomation/playwright-mcp-server"],
+    "env": {
+      "LIVEMCP_DATA": "/Users/glenmaddern/src/projects/LiveMCPBench/annotated_data"
+    },
+    "cwd": "/Users/glenmaddern/src/projects/LiveMCPBench"
+  },
+  {
+    "id": "word",
+    "command": "uvx",
+    "args": ["--from", "office-word-mcp-server", "word_mcp_server"],
+    "env": {
+      "LIVEMCP_DATA": "/Users/glenmaddern/src/projects/LiveMCPBench/annotated_data"
+    },
+    "cwd": "/Users/glenmaddern/src/projects/LiveMCPBench"
+  },
+  {
+    "id": "chart",
+    "command": "npx",
+    "args": ["-y", "@antv/mcp-server-chart"],
+    "env": {
+      "LIVEMCP_DATA": "/Users/glenmaddern/src/projects/LiveMCPBench/annotated_data"
+    },
+    "cwd": "/Users/glenmaddern/src/projects/LiveMCPBench"
+  },
+  {
+    "id": "trends",
+    "command": "npx",
+    "args": ["-y", "mcp-trends-hub@1.6.2"],
+    "env": {
+      "LIVEMCP_DATA": "/Users/glenmaddern/src/projects/LiveMCPBench/annotated_data"
+    },
+    "cwd": "/Users/glenmaddern/src/projects/LiveMCPBench"
+  }
+]
