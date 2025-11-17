@@ -1,6 +1,6 @@
 {
   "name": "mcp-discovery",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "type": "module",
   "bin": {
     "mcp-discovery": "./src/mcp-discovery.ts"
