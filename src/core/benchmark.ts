@@ -38,18 +38,18 @@ function percentile(sorted: number[], p: number): number {
 }
 
 export async function runBenchmark(config: BenchmarkConfig): Promise<number> {
-  console.error(RESET);
+  console.log(RESET);
   const tempRoot = await mkdtemp(join(tmpdir(), "mcp-discovery-"));
-  console.error(`📁 Logs directory: ${tempRoot}\n`);
+  console.log(`📁 Logs directory: ${tempRoot}\n`);
 
-  console.error(`${BLUE}Running ${config.runs} inference(s) with concurrency ${config.concurrency}...${RESET}\n`);
+  console.log(`${BLUE}Running ${config.runs} inference(s) with concurrency ${config.concurrency}...${RESET}\n`);
 
   if (config.expectations && config.expectations.length > 0) {
-    console.error(`${BLUE}Expectations:${RESET} ${config.expectations.join(", ")}\n`);
+    console.log(`${BLUE}Expectations:${RESET} ${config.expectations.join(", ")}\n`);
   }
 
   const pools = await createServerPools(config.serverConfigs, config.concurrency);
-  console.error(`Started ${pools.length} server pool(s), discovered ${pools[0]?.registry.tools.length ?? 0} tools\n`);
+  console.log(`Started ${pools.length} server pool(s), discovered ${pools[0]?.registry.tools.length ?? 0} tools\n`);
 
   const results: RunResult[] = [];
   const durations: number[] = [];
@@ -151,13 +151,13 @@ export async function runBenchmark(config: BenchmarkConfig): Promise<number> {
 
       // Update progress
       const completed = passCount + failCount;
-      if (process.stderr.isTTY) {
-        process.stderr.write(
+      if (process.stdout.isTTY) {
+        process.stdout.write(
           `\r${completed}/${config.runs} | ${SUCCESS}${passCount} ${FAILURE}${failCount}${RESET}`
         );
       } else {
         if (completed % 10 === 0 || completed === config.runs) {
-          console.error(`Progress: ${completed}/${config.runs} | pass: ${passCount} fail: ${failCount}${RESET}`);
+          console.log(`Progress: ${completed}/${config.runs} | pass: ${passCount} fail: ${failCount}${RESET}`);
         }
       }
     }
@@ -166,8 +166,8 @@ export async function runBenchmark(config: BenchmarkConfig): Promise<number> {
   await Promise.all(workers);
 
   // Clear progress line and reset colors
-  if (process.stderr.isTTY) {
-    process.stderr.write(`\r\x1b[K${RESET}`);
+  if (process.stdout.isTTY) {
+    process.stdout.write(`\r\x1b[K${RESET}`);
   }
 
   await destroyServerPools(pools);
@@ -179,18 +179,18 @@ export async function runBenchmark(config: BenchmarkConfig): Promise<number> {
   const mean = durations.reduce((a, b) => a + b, 0) / durations.length;
 
   // Print summary
-  console.error("\n" + "═".repeat(60));
-  console.error(`\n📊 Results:\n`);
-  console.error(`   Total runs:    ${config.runs}`);
-  console.error(`   ${SUCCESS} Passes:      ${GREEN}${passCount}${RESET}`);
-  console.error(`   ${FAILURE} Failures:    ${RED}${failCount}${RESET}`);
-  console.error(`   Pass rate:     ${((passCount / config.runs) * 100).toFixed(1)}%${RESET}`);
-  console.error(`\n⏱  Latency:${RESET}`);
-  console.error(`   Mean:          ${mean.toFixed(0)}ms${RESET}`);
-  console.error(`   P50:           ${p50.toFixed(0)}ms${RESET}`);
-  console.error(`   P95:           ${p95.toFixed(0)}ms${RESET}`);
-  console.error(`\n📁 Logs: ${tempRoot}${RESET}`);
-  console.error("\n" + "═".repeat(60) + "\n" + RESET);
+  console.log("\n" + "═".repeat(60));
+  console.log(`\n📊 Results:\n`);
+  console.log(`   Total runs:    ${config.runs}`);
+  console.log(`   ${SUCCESS} Passes:      ${GREEN}${passCount}${RESET}`);
+  console.log(`   ${FAILURE} Failures:    ${RED}${failCount}${RESET}`);
+  console.log(`   Pass rate:     ${((passCount / config.runs) * 100).toFixed(1)}%${RESET}`);
+  console.log(`\n⏱  Latency:${RESET}`);
+  console.log(`   Mean:          ${mean.toFixed(0)}ms${RESET}`);
+  console.log(`   P50:           ${p50.toFixed(0)}ms${RESET}`);
+  console.log(`   P95:           ${p95.toFixed(0)}ms${RESET}`);
+  console.log(`\n📁 Logs: ${tempRoot}${RESET}`);
+  console.log("\n" + "═".repeat(60) + "\n" + RESET);
 
   return failCount === 0 ? 0 : 1;
 }

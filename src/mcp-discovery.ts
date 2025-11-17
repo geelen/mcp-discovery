@@ -139,20 +139,20 @@ async function main() {
     let toolRegistry;
 
     if (selectedServers.length > 0) {
-      console.error(`Starting ${selectedServers.length} MCP server(s)...`);
+      console.log(`Starting ${selectedServers.length} MCP server(s)...`);
       mcpClients = await startServersFromConfig(selectedServers);
 
-      console.error("Discovering tools...");
+      console.log("Discovering tools...");
       toolRegistry = await allDiscoveryStrategy(mcpClients);
-      console.error(`Discovered ${toolRegistry.tools.length} tools`);
+      console.log(`Discovered ${toolRegistry.tools.length} tools`);
     } else {
-      console.error("No MCP servers specified, running without tools");
+      console.log("No MCP servers specified, running without tools");
       toolRegistry = { tools: [], byName: new Map() };
     }
 
     const adapter = createCompletionsAdapter(providerKey, providerConfig, apiKey);
 
-    console.error("Running inference...");
+    console.log("Running inference...");
     const result = await runToolLoop({
       adapter,
       registry: toolRegistry,

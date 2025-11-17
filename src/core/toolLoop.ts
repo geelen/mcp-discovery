@@ -77,7 +77,7 @@ export async function runToolLoop(params: {
     }
 
     if (logToStderr) {
-      console.error(JSON.stringify(response));
+      console.log(JSON.stringify(response));
     }
 
     for (const toolCall of toolCalls) {
