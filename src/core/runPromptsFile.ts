@@ -1,5 +1,7 @@
 import { join, resolve, isAbsolute } from "path";
-import type { CompletionsAdapter, ToolRegistry } from "../types/index.js";
+import { mkdtemp, mkdir, writeFile } from "fs/promises";
+import { tmpdir } from "os";
+import type { CompletionsAdapter, ToolRegistry, CompletionsResponse, CompletionsError } from "../types/index.js";
 import { runToolLoop } from "./toolLoop.js";
 
 const GREEN = "\x1b[32m";
@@ -71,6 +73,13 @@ export async function runPromptsFile(params: {
 
   console.log(`${BLUE}Running ${promptsToRun.length} prompt(s) from ${filePath}${RESET}\n`);
 
+  // Create temp directory for logs
+  const tempRoot = await mkdtemp(join(tmpdir(), "mcp-prompts-"));
+  const failDir = join(tempRoot, "fail");
+  await mkdir(failDir);
+  
+  console.log(`📁 Logs directory: ${tempRoot}\n`);
+
   let totalPassed = 0;
   let totalFailed = 0;
 
@@ -91,7 +100,10 @@ export async function runPromptsFile(params: {
     const hasError = "error" in result;
 
     if (hasError) {
-      console.log(`${RED}ERROR: API error${RESET}\n`);
+      const logPath = join(failDir, `prompt-${index}-error.json`);
+      await writeFile(logPath, JSON.stringify(result, null, 2), "utf-8");
+      console.log(`${RED}ERROR: API error${RESET}`);
+      console.log(`${RED}Log:${RESET} ${logPath}\n`);
       totalFailed++;
       continue;
     }
@@ -99,7 +111,10 @@ export async function runPromptsFile(params: {
     const answer = params.adapter.extractAnswer(result);
 
     if (!answer) {
-      console.log(`${RED}FAIL: No <answer> block found${RESET}\n`);
+      const logPath = join(failDir, `prompt-${index}-no-answer.json`);
+      await writeFile(logPath, JSON.stringify(result, null, 2), "utf-8");
+      console.log(`${RED}FAIL: No <answer> block found${RESET}`);
+      console.log(`${RED}Log:${RESET} ${logPath}\n`);
       totalFailed++;
       continue;
     }
@@ -113,11 +128,20 @@ export async function runPromptsFile(params: {
         console.log(`${SUCCESS} ${GREEN}PASS${RESET}\n`);
         totalPassed++;
       } else {
-        console.log(`${FAILURE} ${RED}FAIL: Expectation not met${RESET}\n`);
+        const logPath = join(failDir, `prompt-${index}-expectation-failed.json`);
+        await writeFile(logPath, JSON.stringify({ result, answer, passed: false }, null, 2), "utf-8");
+        console.log(`${BLUE}Answer:${RESET} ${answer}`);
+        console.log(`${FAILURE} ${RED}FAIL: Expectation not met${RESET}`);
+        console.log(`${RED}Log:${RESET} ${logPath}\n`);
         totalFailed++;
       }
     } catch (error) {
-      console.log(`${FAILURE} ${RED}FAIL: Expectation threw error: ${error instanceof Error ? error.message : String(error)}${RESET}\n`);
+      const logPath = join(failDir, `prompt-${index}-expectation-error.json`);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      await writeFile(logPath, JSON.stringify({ result, answer, error: errorMessage }, null, 2), "utf-8");
+      console.log(`${BLUE}Answer:${RESET} ${answer}`);
+      console.log(`${FAILURE} ${RED}FAIL: Expectation threw error: ${errorMessage}${RESET}`);
+      console.log(`${RED}Log:${RESET} ${logPath}\n`);
       totalFailed++;
     }
   }
