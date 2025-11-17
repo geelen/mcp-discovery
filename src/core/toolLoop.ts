@@ -57,7 +57,12 @@ export async function runToolLoop(params: {
       return response;
     }
 
-    const assistantMessage = response.message;
+    const choice = response.choices?.[0];
+    if (!choice) {
+      return response;
+    }
+
+    const assistantMessage = choice.message;
     messages.push(assistantMessage);
 
     const toolCalls = assistantMessage.tool_calls;

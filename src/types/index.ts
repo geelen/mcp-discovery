@@ -61,14 +61,23 @@ export type CompletionsRequest = {
 };
 
 export type CompletionsResponse = {
-  message: Message;
-  finishReason?: string;
+  id: string;
+  object: string;
+  created: number;
+  model: string;
+  choices: Array<{
+    index: number;
+    message: Message;
+    finish_reason: string;
+    logprobs?: unknown;
+  }>;
   usage?: {
     prompt_tokens: number;
     completion_tokens: number;
     total_tokens: number;
+    [key: string]: unknown;
   };
-  raw: unknown;
+  [key: string]: unknown;
 };
 
 export type CompletionsError = {
@@ -76,7 +85,9 @@ export type CompletionsError = {
     message: string;
     type: string;
     code?: string;
+    [key: string]: unknown;
   };
+  [key: string]: unknown;
 };
 
 export type CompletionsAdapter = {

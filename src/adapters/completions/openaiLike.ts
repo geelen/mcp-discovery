@@ -73,37 +73,10 @@ export function createOpenAiLikeAdapter(baseURL: string, apiKey: string): Comple
         const responseJson = await response.json();
 
         if (!response.ok) {
-          return {
-            error: {
-              message: responseJson.error?.message || "Unknown error",
-              type: responseJson.error?.type || "api_error",
-              code: responseJson.error?.code,
-            },
-          };
+          return responseJson;
         }
 
-        const choice = responseJson.choices?.[0];
-        if (!choice) {
-          return {
-            error: {
-              message: "No choices in response",
-              type: "invalid_response",
-            },
-          };
-        }
-
-        const assistantMessage: Message = {
-          role: "assistant",
-          content: choice.message.content || null,
-          tool_calls: choice.message.tool_calls,
-        };
-
-        return {
-          message: assistantMessage,
-          finishReason: choice.finish_reason,
-          usage: responseJson.usage,
-          raw: responseJson,
-        };
+        return responseJson;
       } catch (error) {
         return {
           error: {

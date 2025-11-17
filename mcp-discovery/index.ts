@@ -138,12 +138,11 @@ async function main() {
 
   await stopAllServers(mcpClients);
 
+  console.log(JSON.stringify(result, null, 2));
+
   if ("error" in result) {
-    console.error("Error:", JSON.stringify(result.error, null, 2));
     process.exit(1);
   }
-
-  console.log(JSON.stringify(result, null, 2));
 }
 
 main().catch((error) => {
