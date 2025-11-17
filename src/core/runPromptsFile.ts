@@ -24,6 +24,7 @@ export async function runPromptsFile(params: {
   model: string;
   promptsFileSpec: string;
   cwd: string;
+  loadedServers: string[];
 }): Promise<number> {
   // Parse the file spec (e.g., "mcp/prompts.ts:0")
   const colonIndex = params.promptsFileSpec.lastIndexOf(":");
@@ -82,12 +83,21 @@ export async function runPromptsFile(params: {
 
   let totalPassed = 0;
   let totalFailed = 0;
+  let totalSkipped = 0;
 
   for (const { index, prompt: testPrompt } of promptsToRun) {
     console.log(`${"─".repeat(60)}`);
     console.log(`${BLUE}Prompt ${index}:${RESET} ${testPrompt.prompt.slice(0, 80)}${testPrompt.prompt.length > 80 ? "..." : ""}`);
     console.log(`${BLUE}Servers:${RESET} ${testPrompt.servers.join(", ")}`);
     console.log(`${"─".repeat(60)}\n`);
+
+    // Check if all required servers are loaded
+    const missingServers = testPrompt.servers.filter(s => !params.loadedServers.includes(s));
+    if (missingServers.length > 0) {
+      console.log(`${YELLOW}SKIPPED: Server(s) not loaded: ${missingServers.join(", ")}${RESET}\n`);
+      totalSkipped++;
+      continue;
+    }
 
     const result = await runToolLoop({
       adapter: params.adapter,
@@ -150,6 +160,7 @@ export async function runPromptsFile(params: {
   console.log(`${BLUE}Summary:${RESET}`);
   console.log(`  ${GREEN}Passed:${RESET} ${totalPassed}`);
   console.log(`  ${RED}Failed:${RESET} ${totalFailed}`);
+  console.log(`  ${YELLOW}Skipped:${RESET} ${totalSkipped}`);
   console.log(`${"═".repeat(60)}\n`);
 
   return totalFailed > 0 ? 1 : 0;

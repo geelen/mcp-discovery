@@ -167,6 +167,7 @@ async function main() {
 
     const adapter = createCompletionsAdapter(providerKey, providerConfig, apiKey);
     const cwd = process.cwd();
+    const loadedServerIds = selectedServers.map(s => s.id);
 
     const exitCode = await runPromptsFile({
       adapter,
@@ -174,6 +175,7 @@ async function main() {
       model: modelName,
       promptsFileSpec: promptsFile,
       cwd,
+      loadedServers: loadedServerIds,
     });
 
     await stopAllServers(mcpClients);

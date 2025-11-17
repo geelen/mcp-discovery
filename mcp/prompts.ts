@@ -16,7 +16,7 @@ export const prompts: TestPrompt[] = [
     expectation: (answer) => answer.includes("10")
   },
   {
-    prompt: "In data/ppt/build_effective_agents.pptx, what is the exact title of slide 3? Return it between <answer></answer> tags.",
+    prompt: "In data/ppt/build_effective_agents.pptx, what is the exact title of slide 4? Return it between <answer></answer> tags.",
     servers: ["ppt"],
     expectation: (answer) => answer.includes("Common Frameworks for Agents")
   },
@@ -76,8 +76,8 @@ export const prompts: TestPrompt[] = [
     expectation: (answer) => /[0-5]/.test(answer)
   },
   {
-    prompt: "In data/ppt/build_effective_agents.pptx, what is the last slide's title? Return it between <answer></answer> tags.",
+    prompt: "In data/ppt/build_effective_agents.pptx, what is the content of the last slide? Return it between <answer></answer> tags.",
     servers: ["ppt"],
-    expectation: (answer) => answer.length >= 3 && !answer.toLowerCase().includes("error")
+    expectation: (answer) => answer.toLowerCase().includes("thank you. questions?")
   }
 ];
