@@ -38,8 +38,9 @@ function percentile(sorted: number[], p: number): number {
 }
 
 export async function runBenchmark(config: BenchmarkConfig): Promise<number> {
+  console.error(RESET);
   const tempRoot = await mkdtemp(join(tmpdir(), "mcp-discovery-"));
-  console.error(`\n📁 Logs directory: ${tempRoot}\n`);
+  console.error(`📁 Logs directory: ${tempRoot}\n`);
 
   console.error(`${BLUE}Running ${config.runs} inference(s) with concurrency ${config.concurrency}...${RESET}\n`);
 
