@@ -9,11 +9,12 @@ This directory contains sample data files for testing MCP servers.
 
 ## Usage
 
-The MCP servers are automatically configured to use this data directory through the `LIVEMCP_DATA` environment variable. When you run MCP servers, they will look for files in this directory.
+The MCP servers are automatically configured to run from the `mcp/` directory, so you can use relative paths to access the test data.
 
 Example file paths when using the servers:
-- PowerPoint: `/Users/.../mcp-discovery/mcp/data/ppt/build_effective_agents.pptx`
-- Word: `/Users/.../mcp-discovery/mcp/data/word/exchange.docx`
+- PowerPoint: `data/ppt/build_effective_agents.pptx`
+- Word: `data/word/exchange.docx`
+- Absolute paths also work: `/full/path/to/mcp-discovery/mcp/data/ppt/build_effective_agents.pptx`
 
 ## Data Source
 

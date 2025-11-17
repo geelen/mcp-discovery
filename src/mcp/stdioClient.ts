@@ -8,6 +8,7 @@ export async function spawnMcpClient(serverConfig: McpServerConfig): Promise<Mcp
     args: serverConfig.args,
     env: { ...process.env, ...serverConfig.env },
     stderr: "pipe",
+    cwd: serverConfig.cwd,
   });
 
   const client = new Client(

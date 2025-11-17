@@ -7,15 +7,16 @@ export async function loadMcpServersFile(path: string): Promise<McpServerConfig[
   const fileContent = await readFile(path, "utf-8");
   const servers = JSON.parse(fileContent);
   
-  // Resolve the data directory path relative to the project root
+  // Resolve the mcp directory path relative to the project root
   const projectRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
-  const dataPath = join(projectRoot, "mcp", "data");
+  const mcpDirectory = join(projectRoot, "mcp");
   
-  // Inject LIVEMCP_DATA into server environments if not already set
+  // Set cwd to mcp directory and LIVEMCP_DATA to relative data path
   return servers.map((server: McpServerConfig) => ({
     ...server,
+    cwd: mcpDirectory,
     env: {
-      LIVEMCP_DATA: dataPath,
+      LIVEMCP_DATA: "data",
       ...server.env,
     },
   }));
