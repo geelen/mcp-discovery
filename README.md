@@ -61,23 +61,23 @@ Examples:
     -m groq:llama-3.3-70b-versatile \
     -p "What is 2+2?"
 
-  # Query PowerPoint file with Groq
+  # Query bundled test PowerPoint file
   bunx mcp-discovery all \
     -m groq:llama-3.3-70b-versatile \
     -s ppt \
-    -p "What is the title of the first slide of /tmp/demo.ppt"
+    -p "What is in the bundled presentation about building agents?"
 
-  # Use multiple MCP servers
+  # Query bundled Word documents
   bunx mcp-discovery all \
     -m groq:llama-3.3-70b-versatile \
-    -s ppt,word,chart \
-    -p "Summarize the documents in /tmp"
+    -s word \
+    -p "What information is in the exchange document?"
 
-  # Query with all configured servers
+  # Use multiple MCP servers together
   bunx mcp-discovery all \
     -m groq:llama-3.3-70b-versatile \
-    -s ppt,playwright,word,chart,trends \
-    -p "What is trending in AI this week?"
+    -s ppt,word \
+    -p "List all available documents"
 ```
 
 ## Configuration
