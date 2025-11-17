@@ -40,6 +40,12 @@ function percentile(sorted: number[], p: number): number {
 export async function runBenchmark(config: BenchmarkConfig): Promise<number> {
   console.log(RESET);
   const tempRoot = await mkdtemp(join(tmpdir(), "mcp-discovery-"));
+  const successDir = join(tempRoot, "success");
+  const failDir = join(tempRoot, "fail");
+  
+  await mkdir(successDir);
+  await mkdir(failDir);
+  
   console.log(`📁 Logs directory: ${tempRoot}\n`);
 
   console.log(`${BLUE}Running ${config.runs} inference(s) with concurrency ${config.concurrency}...${RESET}\n`);
@@ -72,33 +78,25 @@ export async function runBenchmark(config: BenchmarkConfig): Promise<number> {
       const runId = getNextRunId();
       if (runId === null) break;
 
-      const runDir = join(tempRoot, `run-${String(runId).padStart(3, "0")}`);
-      await mkdir(runDir, { recursive: true });
-
       const start = Date.now();
       let pass = false;
+      let resultData: any = null;
+      let errorData: any = null;
 
       try {
-        const stepsFile = createWriteStream(join(runDir, "steps.ndjson"));
-        
         const result = await runToolLoop({
           adapter: config.adapter,
           registry: pool.registry,
           model: config.model,
           userPrompt: config.prompt,
           logToStderr: false,
-          onStep: (resp) => {
-            stepsFile.write(JSON.stringify(resp) + "\n");
-          },
         });
 
-        stepsFile.end();
-
         if ("error" in result) {
-          await writeFile(join(runDir, "error.json"), JSON.stringify(result, null, 2));
+          errorData = result;
           pass = false;
         } else {
-          await writeFile(join(runDir, "response.json"), JSON.stringify(result, null, 2));
+          resultData = result;
           
           if (config.expectations && config.expectations.length > 0) {
             const answer = config.adapter.extractAnswer(result);
@@ -113,14 +111,22 @@ export async function runBenchmark(config: BenchmarkConfig): Promise<number> {
           }
         }
       } catch (error) {
-        await writeFile(
-          join(runDir, "error.json"),
-          JSON.stringify({ error: String(error) }, null, 2)
-        );
+        errorData = { error: String(error) };
         pass = false;
       }
 
       const durationMs = Date.now() - start;
+
+      // Write to success or fail directory
+      const targetDir = pass ? successDir : failDir;
+      const runDir = join(targetDir, `run-${String(runId).padStart(3, "0")}`);
+      await mkdir(runDir, { recursive: true });
+
+      if (errorData) {
+        await writeFile(join(runDir, "error.json"), JSON.stringify(errorData, null, 2));
+      } else if (resultData) {
+        await writeFile(join(runDir, "response.json"), JSON.stringify(resultData, null, 2));
+      }
 
       // Write metadata
       await writeFile(
@@ -172,6 +178,28 @@ export async function runBenchmark(config: BenchmarkConfig): Promise<number> {
 
   await destroyServerPools(pools);
 
+  // Compress success logs
+  if (passCount > 0) {
+    try {
+      const tarFile = join(tempRoot, "success.tar.gz");
+      const tarProc = Bun.spawn(
+        ["tar", "-czf", tarFile, "-C", tempRoot, "success"],
+        {
+          stdout: "pipe",
+          stderr: "pipe",
+        },
+      );
+      await tarProc.exited;
+
+      await Bun.spawn(["rm", "-rf", successDir], {
+        stdout: "pipe",
+        stderr: "pipe",
+      }).exited;
+    } catch (error) {
+      console.log(`${YELLOW}Warning: Failed to compress success logs${RESET}`);
+    }
+  }
+
   // Calculate stats
   const sortedDurations = [...durations].sort((a, b) => a - b);
   const p50 = percentile(sortedDurations, 0.5);
@@ -189,7 +217,15 @@ export async function runBenchmark(config: BenchmarkConfig): Promise<number> {
   console.log(`   Mean:          ${mean.toFixed(0)}ms${RESET}`);
   console.log(`   P50:           ${p50.toFixed(0)}ms${RESET}`);
   console.log(`   P95:           ${p95.toFixed(0)}ms${RESET}`);
-  console.log(`\n📁 Logs: ${tempRoot}${RESET}`);
+  
+  console.log(`\n📁 Logs:`);
+  if (passCount > 0) {
+    console.log(`   ${GREEN}✓${RESET} Success logs: ${join(tempRoot, "success.tar.gz")}`);
+  }
+  if (failCount > 0) {
+    console.log(`   ${RED}✗${RESET} Failed logs:  ${failDir}`);
+  }
+  
   console.log("\n" + "═".repeat(60) + "\n" + RESET);
 
   return failCount === 0 ? 0 : 1;
