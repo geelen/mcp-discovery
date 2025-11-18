@@ -1,9 +1,11 @@
 import { join, resolve, isAbsolute } from "path";
 import { mkdtemp, mkdir, writeFile } from "fs/promises";
 import { tmpdir } from "os";
+import { createHash } from "crypto";
 import type { CompletionsAdapter, ToolRegistry, CompletionsResponse, CompletionsError } from "../types/index.js";
 import { runToolLoop, VCRCacheMissError } from "./toolLoop.js";
 import type { VCR } from "../mcp/vcr.js";
+import { minimalDiscoveryStrategy } from "../strategies/discovery/minimal.js";
 
 const GREEN = "\x1b[32m";
 const RED = "\x1b[31m";
@@ -30,6 +32,7 @@ export async function runPromptsFile(params: {
   vcrMode?: "record" | "replay";
   runs?: number;
   concurrency?: number;
+  strategy?: "all" | "minimal";
 }): Promise<number> {
   // Parse the file spec (e.g., "mcp/prompts.ts:0")
   const colonIndex = params.promptsFileSpec.lastIndexOf(":");
@@ -109,12 +112,34 @@ export async function runPromptsFile(params: {
     }
     console.log(`${"─".repeat(60)}\n`);
 
-    // Check if all required servers are loaded
-    const missingServers = testPrompt.servers.filter(s => !params.loadedServers.includes(s));
-    if (missingServers.length > 0) {
-      console.log(`${YELLOW}SKIPPED: Server(s) not loaded: ${missingServers.join(", ")}${RESET}\n`);
-      totalSkipped++;
-      continue;
+    // Check if all required servers are loaded (skip for minimal strategy)
+    if (params.strategy !== "minimal") {
+      const missingServers = testPrompt.servers.filter(s => !params.loadedServers.includes(s));
+      if (missingServers.length > 0) {
+        console.log(`${YELLOW}SKIPPED: Server(s) not loaded: ${missingServers.join(", ")}${RESET}\n`);
+        totalSkipped++;
+        continue;
+      }
+    }
+
+    // For minimal strategy, create a filtered registry per prompt
+    let activeRegistry = params.registry;
+    if (params.strategy === "minimal" && params.vcr) {
+      try {
+        activeRegistry = await minimalDiscoveryStrategy({
+          vcr: params.vcr,
+          fullRegistry: params.registry,
+          task: testPrompt.prompt,
+          expectation: testPrompt.expectation,
+        });
+        if (runs === 1) {
+          console.log(`${BLUE}Minimal strategy:${RESET} Using ${activeRegistry.tools.length} tools: ${activeRegistry.tools.map(t => t.name).join(", ")}\n`);
+        }
+      } catch (error) {
+        console.log(`${RED}ERROR: ${error instanceof Error ? error.message : String(error)}${RESET}\n`);
+        totalSkipped++;
+        continue;
+      }
     }
 
     // Run the prompt multiple times if in benchmark mode
@@ -137,7 +162,7 @@ export async function runPromptsFile(params: {
       try {
         loopResult = await runToolLoop({
           adapter: params.adapter,
-          registry: params.registry,
+          registry: activeRegistry,
           model: params.model,
           userPrompt: testPrompt.prompt,
           logToStderr: false,
@@ -219,6 +244,28 @@ export async function runPromptsFile(params: {
           }
           promptPassed++;
           runResults.push({ passed: true, durationMs });
+
+          // Record successful tool pattern in VCR (only in record mode, not in minimal strategy)
+          if (params.vcr && params.vcrMode === "record" && params.strategy !== "minimal") {
+            const expectationsHash = createHash("sha256")
+              .update(testPrompt.expectation.toString())
+              .digest("hex")
+              .slice(0, 16);
+            
+            // Extract tool names from assistant messages with tool calls
+            const toolsCalled: string[] = [];
+            for (const msg of loopResult.messages) {
+              if (msg.role === "assistant" && msg.tool_calls) {
+                for (const toolCall of msg.tool_calls) {
+                  toolsCalled.push(toolCall.function.name);
+                }
+              }
+            }
+            
+            if (toolsCalled.length > 0) {
+              params.vcr.recordSuccessfulPattern(testPrompt.prompt, expectationsHash, toolsCalled);
+            }
+          }
         } else {
           const logPath = join(failDir, `prompt-${index}-run-${runIdx}-expectation-failed.json`);
           const failLog = [...debugLog, { type: "expectation_result", answer, passed: false }];

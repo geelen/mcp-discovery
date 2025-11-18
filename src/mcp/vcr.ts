@@ -38,6 +38,24 @@ export class VCR {
         updated_at INTEGER NOT NULL
       )
     `);
+
+    this.db.run(`
+      CREATE TABLE IF NOT EXISTS successful_tool_patterns (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        task TEXT NOT NULL,
+        expectations_hash TEXT NOT NULL,
+        tools_called TEXT NOT NULL,
+        num_successes INTEGER NOT NULL DEFAULT 1,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        UNIQUE(task, expectations_hash, tools_called)
+      )
+    `);
+
+    this.db.run(`
+      CREATE INDEX IF NOT EXISTS idx_successful_patterns_lookup 
+      ON successful_tool_patterns(task, expectations_hash)
+    `);
   }
 
   private hashArgs(args: any): string {
@@ -138,7 +156,7 @@ export class VCR {
     return { tools, byName };
   }
 
-  getStats(): { totalCalls: number; uniqueTools: number; registeredTools: number } {
+  getStats(): { totalCalls: number; uniqueTools: number; registeredTools: number; successfulPatterns: number } {
     const totalRow = this.db
       .query<{ count: number }, []>("SELECT COUNT(*) as count FROM tool_calls")
       .get();
@@ -153,11 +171,64 @@ export class VCR {
       .query<{ count: number }, []>("SELECT COUNT(*) as count FROM tools")
       .get();
 
+    const patternsRow = this.db
+      .query<{ count: number }, []>("SELECT COUNT(*) as count FROM successful_tool_patterns")
+      .get();
+
     return {
       totalCalls: totalRow?.count ?? 0,
       uniqueTools: toolsRow?.count ?? 0,
       registeredTools: registeredRow?.count ?? 0,
+      successfulPatterns: patternsRow?.count ?? 0,
     };
+  }
+
+  recordSuccessfulPattern(task: string, expectationsHash: string, toolsCalled: string[]): void {
+    const toolsCalledStr = toolsCalled.join(",");
+    const now = Date.now();
+
+    // Try to increment existing pattern
+    const existing = this.db
+      .query<{ id: number; num_successes: number }, [string, string, string]>(
+        "SELECT id, num_successes FROM successful_tool_patterns WHERE task = ? AND expectations_hash = ? AND tools_called = ?"
+      )
+      .get(task, expectationsHash, toolsCalledStr);
+
+    if (existing) {
+      this.db.run(
+        "UPDATE successful_tool_patterns SET num_successes = ?, updated_at = ? WHERE id = ?",
+        existing.num_successes + 1,
+        now,
+        existing.id
+      );
+    } else {
+      this.db.run(
+        `INSERT INTO successful_tool_patterns (task, expectations_hash, tools_called, num_successes, created_at, updated_at)
+         VALUES (?, ?, ?, 1, ?, ?)`,
+        task,
+        expectationsHash,
+        toolsCalledStr,
+        now,
+        now
+      );
+    }
+  }
+
+  getMostCommonSuccessfulPattern(task: string, expectationsHash: string): string[] | null {
+    const row = this.db
+      .query<{ tools_called: string; num_successes: number }, [string, string]>(
+        `SELECT tools_called, num_successes FROM successful_tool_patterns 
+         WHERE task = ? AND expectations_hash = ?
+         ORDER BY num_successes DESC
+         LIMIT 1`
+      )
+      .get(task, expectationsHash);
+
+    if (row) {
+      return row.tools_called.split(",");
+    }
+
+    return null;
   }
 
   close(): void {

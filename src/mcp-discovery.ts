@@ -61,7 +61,7 @@ async function main() {
     process.exit(0);
   }
 
-  const strategy = positionals[0];
+  const strategy = positionals[0] as "all" | "minimal" | undefined;
   const modelSpec = values.m as string | undefined;
   const serversSpec = values.s as string | undefined;
   const prompt = values.p as string | undefined;
@@ -87,7 +87,7 @@ async function main() {
   }
 
   const missingArgs: string[] = [];
-  if (!strategy) missingArgs.push("<strategy> (positional argument: 'all', 'browse', or 'search')");
+  if (!strategy) missingArgs.push("<strategy> (positional argument: 'all' or 'minimal')");
   if (!modelSpec) missingArgs.push("-m <provider:model> (e.g., -m groq:llama-3.3-70b-versatile)");
   if (!prompt && !promptsFile) missingArgs.push("-p <prompt> OR -i <prompts-file> (e.g., -p \"What is the title?\" or -i mcp/prompts.ts:0)");
 
@@ -100,9 +100,19 @@ async function main() {
     process.exit(1);
   }
 
-  if (strategy !== "all") {
+  if (strategy !== "all" && strategy !== "minimal") {
     console.error(`Error: Strategy '${strategy}' is not yet implemented.`);
-    console.error(`       Only 'all' is currently supported.\n`);
+    console.error(`       Only 'all' and 'minimal' are currently supported.\n`);
+    process.exit(1);
+  }
+
+  if (strategy === "minimal" && !recordMode && !replayMode) {
+    console.error("Error: Minimal strategy requires VCR (use --record or --replay)\n");
+    process.exit(1);
+  }
+
+  if (strategy === "minimal" && !promptsFile) {
+    console.error("Error: Minimal strategy only works with -i <prompts-file>\n");
     process.exit(1);
   }
 
@@ -154,7 +164,7 @@ async function main() {
     
     const stats = vcr.getStats();
     console.log(`VCR mode: ${vcrMode}`);
-    console.log(`VCR cache: ${stats.totalCalls} calls, ${stats.uniqueTools} unique tools, ${stats.registeredTools} registered tools\n`);
+    console.log(`VCR cache: ${stats.totalCalls} calls, ${stats.uniqueTools} unique tools, ${stats.registeredTools} registered tools, ${stats.successfulPatterns} successful patterns\n`);
   }
 
   // Load MCP server configs (but don't start them in replay mode)
@@ -237,6 +247,7 @@ async function main() {
       vcrMode,
       runs,
       concurrency,
+      strategy,
     });
 
     await stopAllServers(mcpClients);
