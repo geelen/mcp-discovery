@@ -126,14 +126,11 @@ export async function runPromptsFile(params: {
     for (let runIdx = 0; runIdx < runs; runIdx++) {
       const startTime = performance.now();
 
-      // Show progress for benchmark mode (every run if < 100, every 10 if >= 100)
+      // Show progress for benchmark mode (update every run)
       if (runs > 1) {
-        const showEvery = runs < 100 ? 1 : 10;
-        if (runIdx % showEvery === 0 || runIdx === runs - 1) {
-          const progress = `${runIdx + 1}/${runs}`;
-          const stats = `${promptPassed} ✓, ${promptFailed} ✗`;
-          process.stderr.write(`\r${BLUE}Progress:${RESET} ${progress} (${stats})                    `);
-        }
+        const progress = `${runIdx + 1}/${runs}`;
+        const stats = `${promptPassed} ✓, ${promptFailed} ✗`;
+        process.stderr.write(`\r${BLUE}Progress:${RESET} ${progress} (${stats})                    `);
       }
 
       let loopResult;
