@@ -46,6 +46,33 @@ export async function runBenchmark(config: BenchmarkConfig): Promise<number> {
   await mkdir(successDir);
   await mkdir(failDir);
   
+  // Generate prompts.ts for this run
+  const promptsContent = `
+export const prompts = [
+  {
+    prompt: ${JSON.stringify(config.prompt)},
+    servers: ${JSON.stringify(config.serverConfigs.map(s => s.id))},
+    expectation: (answer: string) => {
+      const expectations = ${JSON.stringify(config.expectations || [])};
+      if (expectations.length === 0) return true;
+      
+      const normalize = (text: string) => text
+        .toLowerCase()
+        .normalize("NFKD")
+        .replace(/[\\u2010\\u2011\\u2012\\u2013\\u2014\\u2015\\u2212\\uFE58\\uFE63\\uFF0D]/g, "-")
+        .replace(/[\\u2018\\u2019\\u201A\\u201B]/g, "'")
+        .replace(/[\\u201C\\u201D\\u201E\\u201F]/g, '"')
+        .replace(/\\s+/g, " ")
+        .trim();
+        
+      const normalizedAnswer = normalize(answer);
+      return expectations.every(exp => normalizedAnswer.includes(normalize(exp)));
+    }
+  }
+];
+`;
+  await writeFile(join(tempRoot, "prompts.ts"), promptsContent);
+
   console.log(`📁 Logs directory: ${tempRoot}\n`);
 
   console.log(`${BLUE}Running ${config.runs} inference(s) with concurrency ${config.concurrency}...${RESET}\n`);

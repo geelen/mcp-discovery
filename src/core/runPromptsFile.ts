@@ -1,5 +1,5 @@
 import { join, resolve, isAbsolute } from "path";
-import { mkdtemp, mkdir, writeFile } from "fs/promises";
+import { mkdtemp, mkdir, writeFile, copyFile } from "fs/promises";
 import { tmpdir } from "os";
 import { createHash } from "crypto";
 import type { CompletionsAdapter, ToolRegistry, CompletionsResponse, CompletionsError } from "../types/index.js";
@@ -94,6 +94,9 @@ export async function runPromptsFile(params: {
   const tempRoot = await mkdtemp(join(tmpdir(), "mcp-prompts-"));
   const failDir = join(tempRoot, "fail");
   await mkdir(failDir);
+
+  // Copy prompts file to logs directory
+  await copyFile(absolutePath, join(tempRoot, "prompts.ts"));
   
   console.log(`📁 Logs directory: ${tempRoot}\n`);
 
