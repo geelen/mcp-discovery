@@ -13,6 +13,7 @@ import { runToolLoop } from "./core/toolLoop.js";
 import { runBenchmark } from "./core/benchmark.js";
 import { runSingleInference } from "./core/singleRun.js";
 import { runPromptsFile } from "./core/runPromptsFile.js";
+import { VCR } from "./mcp/vcr.js";
 
 async function loadUsageFromReadme(): Promise<string> {
   try {
@@ -47,6 +48,8 @@ async function main() {
       c: { type: "string" },
       x: { type: "string", multiple: true },
       i: { type: "string" },
+      record: { type: "boolean" },
+      replay: { type: "boolean" },
       help: { type: "boolean" },
     },
     allowPositionals: true,
@@ -64,6 +67,8 @@ async function main() {
   const prompt = values.p as string | undefined;
   const expectations = (values.x as string[] | undefined) || [];
   const promptsFile = values.i as string | undefined;
+  const recordMode = values.record as boolean | undefined;
+  const replayMode = values.replay as boolean | undefined;
 
   // Check for incompatible flags
   if (promptsFile && prompt) {
@@ -73,6 +78,11 @@ async function main() {
 
   if (promptsFile && expectations.length > 0) {
     console.error("Error: Cannot use -i (prompts file) together with -x (expectations)\n");
+    process.exit(1);
+  }
+
+  if (recordMode && replayMode) {
+    console.error("Error: Cannot use --record and --replay together\n");
     process.exit(1);
   }
 
@@ -121,6 +131,7 @@ async function main() {
   const __dirname = dirname(fileURLToPath(import.meta.url));
   const providersPath = join(__dirname, "..", "providers.json");
   const serversPath = join(__dirname, "..", "mcp", "servers.json");
+  const vcrPath = join(__dirname, "..", "mcp", "vcr.sqlite3");
 
   let providers, providerConfig, apiKey;
   
@@ -133,17 +144,39 @@ async function main() {
     process.exit(1);
   }
 
-  // Load MCP server configs
+  // Initialize VCR if needed
+  let vcr: VCR | undefined;
+  let vcrMode: "record" | "replay" | undefined;
+
+  if (recordMode || replayMode) {
+    vcr = new VCR(vcrPath);
+    vcrMode = recordMode ? "record" : "replay";
+    
+    const stats = vcr.getStats();
+    console.log(`VCR mode: ${vcrMode}`);
+    console.log(`VCR cache: ${stats.totalCalls} calls, ${stats.uniqueTools} unique tools\n`);
+  }
+
+  // Load MCP server configs (but don't start them in replay mode)
   let selectedServers = [];
+  let serverIdsForReplay: string[] = [];
+  
   if (serversSpec) {
     const serverIds = serversSpec.split(",").map((s) => s.trim());
-    let allServers;
-    try {
-      allServers = await loadMcpServersFile(serversPath);
-      selectedServers = filterServersByIds(allServers, serverIds);
-    } catch (error) {
-      console.error(`Error: ${error instanceof Error ? error.message : String(error)}`);
-      process.exit(1);
+    
+    if (replayMode) {
+      // In replay mode, just store the server IDs but don't load servers
+      serverIdsForReplay = serverIds;
+      console.log("Replay mode: Skipping MCP server startup\n");
+    } else {
+      let allServers;
+      try {
+        allServers = await loadMcpServersFile(serversPath);
+        selectedServers = filterServersByIds(allServers, serverIds);
+      } catch (error) {
+        console.error(`Error: ${error instanceof Error ? error.message : String(error)}`);
+        process.exit(1);
+      }
     }
   }
 
@@ -152,22 +185,29 @@ async function main() {
     // Prompts file mode
     let mcpClients = [];
     let toolRegistry;
+    let loadedServerIds: string[];
 
-    if (selectedServers.length > 0) {
+    if (replayMode) {
+      // In replay mode, create an empty registry - VCR will handle all tool calls
+      console.log("Creating stub tool registry for VCR replay\n");
+      toolRegistry = { tools: [], byName: new Map() };
+      loadedServerIds = serverIdsForReplay;
+    } else if (selectedServers.length > 0) {
       console.log(`Starting ${selectedServers.length} MCP server(s)...`);
       mcpClients = await startServersFromConfig(selectedServers);
 
       console.log("Discovering tools...");
       toolRegistry = await allDiscoveryStrategy(mcpClients);
       console.log(`Discovered ${toolRegistry.tools.length} tools`);
+      loadedServerIds = selectedServers.map(s => s.id);
     } else {
       console.log("No MCP servers specified, running without tools");
       toolRegistry = { tools: [], byName: new Map() };
+      loadedServerIds = [];
     }
 
     const adapter = createCompletionsAdapter(providerKey, providerConfig, apiKey);
     const cwd = process.cwd();
-    const loadedServerIds = selectedServers.map(s => s.id);
 
     const exitCode = await runPromptsFile({
       adapter,
@@ -176,9 +216,12 @@ async function main() {
       promptsFileSpec: promptsFile,
       cwd,
       loadedServers: loadedServerIds,
+      vcr,
+      vcrMode,
     });
 
     await stopAllServers(mcpClients);
+    if (vcr) vcr.close();
 
     process.exit(exitCode);
   } else if (runs === 1) {

@@ -6,6 +6,7 @@ import type {
   CompletionsError,
   CompletionsResponse,
 } from "../types/index.js";
+import type { VCR } from "../mcp/vcr.js";
 
 function isCompletionsError(response: CompletionsResponse | CompletionsError): response is CompletionsError {
   return "error" in response;
@@ -29,6 +30,13 @@ export type ToolLoopResult = {
   requests: any[];
 };
 
+export class VCRCacheMissError extends Error {
+  constructor(toolName: string, args: any) {
+    super(`VCR cache miss in replay mode: ${toolName}(${JSON.stringify(args)})`);
+    this.name = "VCRCacheMissError";
+  }
+}
+
 export async function runToolLoop(params: {
   adapter: CompletionsAdapter;
   registry: ToolRegistry;
@@ -38,6 +46,8 @@ export async function runToolLoop(params: {
   temperature?: number;
   logToStderr?: boolean;
   onStep?: (response: CompletionsResponse, iteration: number) => void;
+  vcr?: VCR;
+  vcrMode?: "record" | "replay";
 }): Promise<ToolLoopResult> {
   const maxIterations = params.maxIterations ?? 10;
   const temperature = params.temperature ?? 0.2;
@@ -112,7 +122,28 @@ export async function runToolLoop(params: {
       try {
         const argsString = toolCall.function.arguments;
         const args = argsString ? JSON.parse(argsString) : {};
-        const result = await tool.invoke(args);
+        
+        let result: any;
+
+        // Check VCR cache first (in both record and replay modes)
+        if (params.vcr && params.vcrMode) {
+          const cachedResult = params.vcr.getCachedResult(toolName, args);
+          
+          if (cachedResult !== null) {
+            // Cache hit - use cached result
+            result = cachedResult;
+          } else if (params.vcrMode === "replay") {
+            // Cache miss in replay mode - fail
+            throw new VCRCacheMissError(toolName, args);
+          } else {
+            // Cache miss in record mode - invoke real tool and cache result
+            result = await tool.invoke(args);
+            params.vcr.recordResult(toolName, args, result);
+          }
+        } else {
+          // No VCR - invoke tool normally
+          result = await tool.invoke(args);
+        }
 
         messages.push({
           role: "tool",

@@ -2,7 +2,8 @@ import { join, resolve, isAbsolute } from "path";
 import { mkdtemp, mkdir, writeFile } from "fs/promises";
 import { tmpdir } from "os";
 import type { CompletionsAdapter, ToolRegistry, CompletionsResponse, CompletionsError } from "../types/index.js";
-import { runToolLoop } from "./toolLoop.js";
+import { runToolLoop, VCRCacheMissError } from "./toolLoop.js";
+import type { VCR } from "../mcp/vcr.js";
 
 const GREEN = "\x1b[32m";
 const RED = "\x1b[31m";
@@ -25,6 +26,8 @@ export async function runPromptsFile(params: {
   promptsFileSpec: string;
   cwd: string;
   loadedServers: string[];
+  vcr?: VCR;
+  vcrMode?: "record" | "replay";
 }): Promise<number> {
   // Parse the file spec (e.g., "mcp/prompts.ts:0")
   const colonIndex = params.promptsFileSpec.lastIndexOf(":");
@@ -84,6 +87,7 @@ export async function runPromptsFile(params: {
   let totalPassed = 0;
   let totalFailed = 0;
   let totalSkipped = 0;
+  let totalCacheMiss = 0;
 
   for (const { index, prompt: testPrompt } of promptsToRun) {
     console.log(`${"─".repeat(60)}`);
@@ -99,13 +103,25 @@ export async function runPromptsFile(params: {
       continue;
     }
 
-    const loopResult = await runToolLoop({
-      adapter: params.adapter,
-      registry: params.registry,
-      model: params.model,
-      userPrompt: testPrompt.prompt,
-      logToStderr: false,
-    });
+    let loopResult;
+    try {
+      loopResult = await runToolLoop({
+        adapter: params.adapter,
+        registry: params.registry,
+        model: params.model,
+        userPrompt: testPrompt.prompt,
+        logToStderr: false,
+        vcr: params.vcr,
+        vcrMode: params.vcrMode,
+      });
+    } catch (error) {
+      if (error instanceof VCRCacheMissError) {
+        console.log(`${YELLOW}VCR CACHE MISS: ${error.message}${RESET}\n`);
+        totalCacheMiss++;
+        continue;
+      }
+      throw error;
+    }
 
     const result = loopResult.finalResult;
     const hasError = "error" in result;
@@ -184,6 +200,9 @@ export async function runPromptsFile(params: {
   console.log(`  ${GREEN}Passed:${RESET} ${totalPassed}`);
   console.log(`  ${RED}Failed:${RESET} ${totalFailed}`);
   console.log(`  ${YELLOW}Skipped:${RESET} ${totalSkipped}`);
+  if (totalCacheMiss > 0) {
+    console.log(`  ${YELLOW}VCR Cache Miss:${RESET} ${totalCacheMiss}`);
+  }
   console.log(`${"═".repeat(60)}\n`);
 
   return totalFailed > 0 ? 1 : 0;
