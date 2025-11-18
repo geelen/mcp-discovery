@@ -66,7 +66,7 @@ export const prompts: TestPrompt[] = [
     expectation: (answer) => /\d+/.test(answer) && (!answer.includes("0") || !!answer.match(/[1-9]/))
   },
   {
-    prompt: "Use Playwright to go to example.org (note: .org not .com) and return the text of the first paragraph between <answer></answer> tags.",
+    prompt: "Use Playwright to go to example.org (note: .org not .com) and read the text of the first paragraph. Return it between <answer></answer> tags.",
     servers: ["playwright"],
     expectation: (answer) => answer.length >= 50 && answer.toLowerCase().includes("domain")
   },

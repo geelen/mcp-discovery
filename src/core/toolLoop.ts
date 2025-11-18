@@ -26,6 +26,7 @@ export type ToolLoopResult = {
   finalResult: CompletionsResponse | CompletionsError;
   messages: Message[];
   responses: (CompletionsResponse | CompletionsError)[];
+  requests: any[];
 };
 
 export async function runToolLoop(params: {
@@ -51,26 +52,31 @@ export async function runToolLoop(params: {
   ];
 
   const responses: (CompletionsResponse | CompletionsError)[] = [];
+  const requests: any[] = [];
   const toolSchemas = convertToolsToSchemas(params.registry);
 
   for (let iteration = 0; iteration < maxIterations; iteration++) {
-    const response = await params.adapter.complete({
+    const requestParams = {
       model: params.model,
       messages,
       tools: toolSchemas.length > 0 ? toolSchemas : undefined,
       tool_choice: toolSchemas.length > 0 ? "auto" : undefined,
       temperature,
-    });
+    };
+
+    requests.push(requestParams);
+
+    const response = await params.adapter.complete(requestParams);
 
     responses.push(response);
 
     if (isCompletionsError(response)) {
-      return { finalResult: response, messages, responses };
+      return { finalResult: response, messages, responses, requests };
     }
 
     const choice = response.choices?.[0];
     if (!choice) {
-      return { finalResult: response, messages, responses };
+      return { finalResult: response, messages, responses, requests };
     }
 
     const assistantMessage = choice.message;
@@ -78,7 +84,7 @@ export async function runToolLoop(params: {
 
     const toolCalls = assistantMessage.tool_calls;
     if (!toolCalls || toolCalls.length === 0) {
-      return { finalResult: response, messages, responses };
+      return { finalResult: response, messages, responses, requests };
     }
 
     if (onStep) {
@@ -133,5 +139,5 @@ export async function runToolLoop(params: {
     },
   };
   
-  return { finalResult: maxIterationsError, messages, responses };
+  return { finalResult: maxIterationsError, messages, responses, requests };
 }

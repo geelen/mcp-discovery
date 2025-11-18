@@ -111,18 +111,24 @@ export async function runPromptsFile(params: {
     const hasError = "error" in result;
 
     // Create debug log with full history
-    const debugLog = [
-      ...loopResult.responses.map((resp, i) => ({
+    const debugLog = [];
+    for (let i = 0; i < loopResult.responses.length; i++) {
+      debugLog.push({
+        step: i,
+        type: "llm_request",
+        data: loopResult.requests[i],
+      });
+      debugLog.push({
         step: i,
         type: "llm_response",
-        data: resp,
-      })),
-      {
-        step: loopResult.responses.length,
-        type: "final_result",
-        data: result,
-      },
-    ];
+        data: loopResult.responses[i],
+      });
+    }
+    debugLog.push({
+      step: loopResult.responses.length,
+      type: "final_result",
+      data: result,
+    });
 
     if (hasError) {
       const logPath = join(failDir, `prompt-${index}-error.json`);
