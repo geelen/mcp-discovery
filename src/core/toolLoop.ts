@@ -49,6 +49,9 @@ export async function runToolLoop(params: {
   vcr?: VCR;
   vcrMode?: "record" | "replay";
 }): Promise<ToolLoopResult> {
+  const DEBUG_TIMING = process.env.DEBUG_TIMING === "1";
+  const startTotal = performance.now();
+  
   const maxIterations = params.maxIterations ?? 10;
   const temperature = params.temperature ?? 0.2;
   const logToStderr = params.logToStderr ?? false;
@@ -76,7 +79,10 @@ export async function runToolLoop(params: {
 
     requests.push(requestParams);
 
+    const llmStart = performance.now();
     const response = await params.adapter.complete(requestParams);
+    const llmTime = performance.now() - llmStart;
+    if (DEBUG_TIMING) console.error(`[TIMING] LLM call ${iteration}: ${llmTime.toFixed(0)}ms`);
 
     responses.push(response);
 
@@ -105,6 +111,7 @@ export async function runToolLoop(params: {
       console.log(JSON.stringify(response));
     }
 
+    const toolStart = performance.now();
     for (const toolCall of toolCalls) {
       const toolName = toolCall.function.name;
       const tool = params.registry.byName.get(toolName);
@@ -127,7 +134,10 @@ export async function runToolLoop(params: {
 
         // Check VCR cache first (in both record and replay modes)
         if (params.vcr && params.vcrMode) {
+          const vcrStart = performance.now();
           const cachedResult = params.vcr.getCachedResult(toolName, args);
+          const vcrTime = performance.now() - vcrStart;
+          if (DEBUG_TIMING) console.error(`[TIMING]   VCR lookup ${toolName}: ${vcrTime.toFixed(0)}ms`);
           
           if (cachedResult !== null) {
             // Cache hit - use cached result
@@ -161,7 +171,12 @@ export async function runToolLoop(params: {
         });
       }
     }
+    const toolTime = performance.now() - toolStart;
+    if (DEBUG_TIMING && toolCalls.length > 0) console.error(`[TIMING]   All tools (${toolCalls.length}): ${toolTime.toFixed(0)}ms`);
   }
+
+  const totalTime = performance.now() - startTotal;
+  if (DEBUG_TIMING) console.error(`[TIMING] Total runToolLoop: ${totalTime.toFixed(0)}ms\n`);
 
   const maxIterationsError: CompletionsError = {
     error: {
