@@ -126,6 +126,16 @@ export async function runPromptsFile(params: {
     for (let runIdx = 0; runIdx < runs; runIdx++) {
       const startTime = performance.now();
 
+      // Show progress for benchmark mode (every run if < 100, every 10 if >= 100)
+      if (runs > 1) {
+        const showEvery = runs < 100 ? 1 : 10;
+        if (runIdx % showEvery === 0 || runIdx === runs - 1) {
+          const progress = `${runIdx + 1}/${runs}`;
+          const stats = `${promptPassed} ✓, ${promptFailed} ✗`;
+          process.stderr.write(`\r${BLUE}Progress:${RESET} ${progress} (${stats})                    `);
+        }
+      }
+
       let loopResult;
       try {
         loopResult = await runToolLoop({
@@ -243,6 +253,9 @@ export async function runPromptsFile(params: {
 
     // Display results for this prompt
     if (runs > 1) {
+      // Clear progress line
+      process.stderr.write(`\r${" ".repeat(80)}\r`);
+      
       const durations = runResults.map(r => r.durationMs);
       const avgDuration = durations.reduce((a, b) => a + b, 0) / durations.length;
       const sortedDurations = [...durations].sort((a, b) => a - b);
