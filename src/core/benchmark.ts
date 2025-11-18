@@ -84,13 +84,15 @@ export async function runBenchmark(config: BenchmarkConfig): Promise<number> {
       let errorData: any = null;
 
       try {
-        const result = await runToolLoop({
+        const loopResult = await runToolLoop({
           adapter: config.adapter,
           registry: pool.registry,
           model: config.model,
           userPrompt: config.prompt,
           logToStderr: false,
         });
+
+        const result = loopResult.finalResult;
 
         if ("error" in result) {
           errorData = result;

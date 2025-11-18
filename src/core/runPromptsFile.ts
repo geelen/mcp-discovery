@@ -99,7 +99,7 @@ export async function runPromptsFile(params: {
       continue;
     }
 
-    const result = await runToolLoop({
+    const loopResult = await runToolLoop({
       adapter: params.adapter,
       registry: params.registry,
       model: params.model,
@@ -107,11 +107,26 @@ export async function runPromptsFile(params: {
       logToStderr: false,
     });
 
+    const result = loopResult.finalResult;
     const hasError = "error" in result;
+
+    // Create debug log with full history
+    const debugLog = [
+      ...loopResult.responses.map((resp, i) => ({
+        step: i,
+        type: "llm_response",
+        data: resp,
+      })),
+      {
+        step: loopResult.responses.length,
+        type: "final_result",
+        data: result,
+      },
+    ];
 
     if (hasError) {
       const logPath = join(failDir, `prompt-${index}-error.json`);
-      await writeFile(logPath, JSON.stringify(result, null, 2), "utf-8");
+      await writeFile(logPath, JSON.stringify(debugLog, null, 2), "utf-8");
       console.log(`${RED}ERROR: API error${RESET}`);
       console.log(`${RED}Log:${RESET} ${logPath}\n`);
       totalFailed++;
@@ -122,7 +137,7 @@ export async function runPromptsFile(params: {
 
     if (!answer) {
       const logPath = join(failDir, `prompt-${index}-no-answer.json`);
-      await writeFile(logPath, JSON.stringify(result, null, 2), "utf-8");
+      await writeFile(logPath, JSON.stringify(debugLog, null, 2), "utf-8");
       console.log(`${RED}FAIL: No <answer> block found${RESET}`);
       console.log(`${RED}Log:${RESET} ${logPath}\n`);
       totalFailed++;
@@ -139,7 +154,8 @@ export async function runPromptsFile(params: {
         totalPassed++;
       } else {
         const logPath = join(failDir, `prompt-${index}-expectation-failed.json`);
-        await writeFile(logPath, JSON.stringify({ result, answer, passed: false }, null, 2), "utf-8");
+        const failLog = [...debugLog, { type: "expectation_result", answer, passed: false }];
+        await writeFile(logPath, JSON.stringify(failLog, null, 2), "utf-8");
         console.log(`${BLUE}Answer:${RESET} ${answer}`);
         console.log(`${FAILURE} ${RED}FAIL: Expectation not met${RESET}`);
         console.log(`${RED}Log:${RESET} ${logPath}\n`);
@@ -148,7 +164,8 @@ export async function runPromptsFile(params: {
     } catch (error) {
       const logPath = join(failDir, `prompt-${index}-expectation-error.json`);
       const errorMessage = error instanceof Error ? error.message : String(error);
-      await writeFile(logPath, JSON.stringify({ result, answer, error: errorMessage }, null, 2), "utf-8");
+      const errorLog = [...debugLog, { type: "expectation_error", answer, error: errorMessage }];
+      await writeFile(logPath, JSON.stringify(errorLog, null, 2), "utf-8");
       console.log(`${BLUE}Answer:${RESET} ${answer}`);
       console.log(`${FAILURE} ${RED}FAIL: Expectation threw error: ${errorMessage}${RESET}`);
       console.log(`${RED}Log:${RESET} ${logPath}\n`);

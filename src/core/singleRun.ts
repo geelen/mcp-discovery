@@ -19,13 +19,15 @@ export async function runSingleInference(params: {
 }): Promise<number> {
   console.log(`${BLUE}Running inference...${RESET}\n`);
 
-  const result = await runToolLoop({
+  const loopResult = await runToolLoop({
     adapter: params.adapter,
     registry: params.registry,
     model: params.model,
     userPrompt: params.prompt,
     logToStderr: true,
   });
+
+  const result = loopResult.finalResult;
 
   console.log("═".repeat(60));
   console.log(`${BLUE}Response:${RESET}\n`);

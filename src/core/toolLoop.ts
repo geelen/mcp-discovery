@@ -22,6 +22,12 @@ function convertToolsToSchemas(registry: ToolRegistry): ToolSchema[] {
   }));
 }
 
+export type ToolLoopResult = {
+  finalResult: CompletionsResponse | CompletionsError;
+  messages: Message[];
+  responses: (CompletionsResponse | CompletionsError)[];
+};
+
 export async function runToolLoop(params: {
   adapter: CompletionsAdapter;
   registry: ToolRegistry;
@@ -31,7 +37,7 @@ export async function runToolLoop(params: {
   temperature?: number;
   logToStderr?: boolean;
   onStep?: (response: CompletionsResponse, iteration: number) => void;
-}): Promise<CompletionsResponse | CompletionsError> {
+}): Promise<ToolLoopResult> {
   const maxIterations = params.maxIterations ?? 10;
   const temperature = params.temperature ?? 0.2;
   const logToStderr = params.logToStderr ?? false;
@@ -44,6 +50,7 @@ export async function runToolLoop(params: {
     },
   ];
 
+  const responses: (CompletionsResponse | CompletionsError)[] = [];
   const toolSchemas = convertToolsToSchemas(params.registry);
 
   for (let iteration = 0; iteration < maxIterations; iteration++) {
@@ -55,13 +62,15 @@ export async function runToolLoop(params: {
       temperature,
     });
 
+    responses.push(response);
+
     if (isCompletionsError(response)) {
-      return response;
+      return { finalResult: response, messages, responses };
     }
 
     const choice = response.choices?.[0];
     if (!choice) {
-      return response;
+      return { finalResult: response, messages, responses };
     }
 
     const assistantMessage = choice.message;
@@ -69,7 +78,7 @@ export async function runToolLoop(params: {
 
     const toolCalls = assistantMessage.tool_calls;
     if (!toolCalls || toolCalls.length === 0) {
-      return response;
+      return { finalResult: response, messages, responses };
     }
 
     if (onStep) {
@@ -117,10 +126,12 @@ export async function runToolLoop(params: {
     }
   }
 
-  return {
+  const maxIterationsError: CompletionsError = {
     error: {
       message: `Maximum iterations (${maxIterations}) reached`,
       type: "max_iterations_exceeded",
     },
   };
+  
+  return { finalResult: maxIterationsError, messages, responses };
 }
