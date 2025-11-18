@@ -110,12 +110,13 @@ export async function runPromptsFile(params: {
     if (runs > 1) {
       console.log(`${BLUE}Runs:${RESET} ${runs} (concurrency: ${concurrency})`);
     }
-    console.log(`${"─".repeat(60)}\n`);
 
     // Check if all required servers are loaded (skip for minimal strategy)
     if (params.strategy !== "minimal") {
       const missingServers = testPrompt.servers.filter(s => !params.loadedServers.includes(s));
       if (missingServers.length > 0) {
+        console.log(`${BLUE}Tools:${RESET} ${params.registry.tools.length}`);
+        console.log(`${"─".repeat(60)}\n`);
         console.log(`${YELLOW}SKIPPED: Server(s) not loaded: ${missingServers.join(", ")}${RESET}\n`);
         totalSkipped++;
         continue;
@@ -132,30 +133,18 @@ export async function runPromptsFile(params: {
           task: testPrompt.prompt,
           expectation: testPrompt.expectation,
         });
-        if (runs === 1) {
-          const totalTools = params.registry.tools.length;
-          const toolsByProvider = new Map<string, string[]>();
-          
-          for (const tool of activeRegistry.tools) {
-            const provider = tool.serverName;
-            if (!toolsByProvider.has(provider)) {
-              toolsByProvider.set(provider, []);
-            }
-            toolsByProvider.get(provider)!.push(tool.name);
-          }
-          
-          const providerSummary = Array.from(toolsByProvider.entries())
-            .map(([provider, tools]) => `${provider}: ${tools.join(", ")}`)
-            .join(", ");
-          
-          console.log(`${BLUE}Minimal mode:${RESET} ${activeRegistry.tools.length} of ${totalTools} tools attached (${providerSummary})\n`);
-        }
+        console.log(`${BLUE}Tools:${RESET} ${activeRegistry.tools.length} (${activeRegistry.tools.map(t => t.name).join(", ")})`);
       } catch (error) {
+        console.log(`${"─".repeat(60)}\n`);
         console.log(`${RED}ERROR: ${error instanceof Error ? error.message : String(error)}${RESET}\n`);
         totalSkipped++;
         continue;
       }
+    } else {
+      console.log(`${BLUE}Tools:${RESET} ${params.registry.tools.length}`);
     }
+    
+    console.log(`${"─".repeat(60)}\n`);
 
     // Run the prompt multiple times if in benchmark mode
     const runResults: { passed: boolean; durationMs: number }[] = [];
