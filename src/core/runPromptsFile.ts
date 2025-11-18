@@ -133,7 +133,22 @@ export async function runPromptsFile(params: {
           expectation: testPrompt.expectation,
         });
         if (runs === 1) {
-          console.log(`${BLUE}Minimal strategy:${RESET} Using ${activeRegistry.tools.length} tools: ${activeRegistry.tools.map(t => t.name).join(", ")}\n`);
+          const totalTools = params.registry.tools.length;
+          const toolsByProvider = new Map<string, string[]>();
+          
+          for (const tool of activeRegistry.tools) {
+            const provider = tool.serverName;
+            if (!toolsByProvider.has(provider)) {
+              toolsByProvider.set(provider, []);
+            }
+            toolsByProvider.get(provider)!.push(tool.name);
+          }
+          
+          const providerSummary = Array.from(toolsByProvider.entries())
+            .map(([provider, tools]) => `${provider}: ${tools.join(", ")}`)
+            .join(", ");
+          
+          console.log(`${BLUE}Minimal mode:${RESET} ${activeRegistry.tools.length} of ${totalTools} tools attached (${providerSummary})\n`);
         }
       } catch (error) {
         console.log(`${RED}ERROR: ${error instanceof Error ? error.message : String(error)}${RESET}\n`);
@@ -147,153 +162,200 @@ export async function runPromptsFile(params: {
     let promptPassed = 0;
     let promptFailed = 0;
     let promptCacheMiss = 0;
+    let completed = 0;
 
-    for (let runIdx = 0; runIdx < runs; runIdx++) {
-      const startTime = performance.now();
+    // Create a worker function that processes a single run
+    const processRun = async (idx: number) => {
+        const startTime = performance.now();
 
-      // Show progress for benchmark mode (update every run)
-      if (runs > 1) {
-        const progress = `${runIdx + 1}/${runs}`;
-        const stats = `${promptPassed} ✓, ${promptFailed} ✗`;
-        process.stderr.write(`\r${BLUE}Progress:${RESET} ${progress} (${stats})                    `);
-      }
-
-      let loopResult;
-      try {
-        loopResult = await runToolLoop({
-          adapter: params.adapter,
-          registry: activeRegistry,
-          model: params.model,
-          userPrompt: testPrompt.prompt,
-          logToStderr: false,
-          vcr: params.vcr,
-          vcrMode: params.vcrMode,
-        });
-      } catch (error) {
-        if (error instanceof VCRCacheMissError) {
-          if (runs === 1) {
-            console.log(`${YELLOW}VCR CACHE MISS: ${error.message}${RESET}\n`);
-          }
-          promptCacheMiss++;
-          totalCacheMiss++;
-          continue;
-        }
-        throw error;
-      }
-
-      const durationMs = performance.now() - startTime;
-      const result = loopResult.finalResult;
-      const hasError = "error" in result;
-
-      // Create debug log with full history
-      const debugLog = [];
-      for (let i = 0; i < loopResult.responses.length; i++) {
-        debugLog.push({
-          step: i,
-          type: "llm_request",
-          data: loopResult.requests[i],
-        });
-        debugLog.push({
-          step: i,
-          type: "llm_response",
-          data: loopResult.responses[i],
-        });
-      }
-      debugLog.push({
-        step: loopResult.responses.length,
-        type: "final_result",
-        data: result,
-      });
-
-      if (hasError) {
-        const logPath = join(failDir, `prompt-${index}-run-${runIdx}-error.json`);
-        await writeFile(logPath, JSON.stringify(debugLog, null, 2), "utf-8");
-        if (runs === 1) {
-          console.log(`${RED}ERROR: API error${RESET}`);
-          console.log(`${RED}Log:${RESET} ${logPath}\n`);
-        }
-        promptFailed++;
-        runResults.push({ passed: false, durationMs });
-        continue;
-      }
-
-      const answer = params.adapter.extractAnswer(result);
-
-      if (!answer) {
-        const logPath = join(failDir, `prompt-${index}-run-${runIdx}-no-answer.json`);
-        await writeFile(logPath, JSON.stringify(debugLog, null, 2), "utf-8");
-        if (runs === 1) {
-          console.log(`${RED}FAIL: No <answer> block found${RESET}`);
-          console.log(`${RED}Log:${RESET} ${logPath}\n`);
-        }
-        promptFailed++;
-        runResults.push({ passed: false, durationMs });
-        continue;
-      }
-
-      if (runs === 1) {
-        console.log(`${BLUE}Answer:${RESET} ${answer}\n`);
-      }
-
-      // Run the expectation callback
-      try {
-        const passed = testPrompt.expectation(answer);
-        if (passed) {
-          if (runs === 1) {
-            console.log(`${SUCCESS} ${GREEN}PASS${RESET}\n`);
-          }
-          promptPassed++;
-          runResults.push({ passed: true, durationMs });
-
-          // Record successful tool pattern in VCR (only in record mode, not in minimal strategy)
-          if (params.vcr && params.vcrMode === "record" && params.strategy !== "minimal") {
-            const expectationsHash = createHash("sha256")
-              .update(testPrompt.expectation.toString())
-              .digest("hex")
-              .slice(0, 16);
+        let loopResult;
+        try {
+          loopResult = await runToolLoop({
+            adapter: params.adapter,
+            registry: activeRegistry,
+            model: params.model,
+            userPrompt: testPrompt.prompt,
+            logToStderr: false,
+            vcr: params.vcr,
+            vcrMode: params.vcrMode,
+          });
+        } catch (error) {
+          if (error instanceof VCRCacheMissError) {
+            if (runs === 1) {
+              console.log(`${YELLOW}VCR CACHE MISS: ${error.message}${RESET}\n`);
+            }
+            promptCacheMiss++;
+            totalCacheMiss++;
             
-            // Extract tool names from assistant messages with tool calls
-            const toolsCalled: string[] = [];
-            for (const msg of loopResult.messages) {
-              if (msg.role === "assistant" && msg.tool_calls) {
-                for (const toolCall of msg.tool_calls) {
-                  toolsCalled.push(toolCall.function.name);
+            // Update progress
+            completed++;
+            if (runs > 1) {
+              const progress = `${completed}/${runs}`;
+              const stats = `${promptPassed} ✓, ${promptFailed} ✗`;
+              process.stderr.write(`\r${BLUE}Progress:${RESET} ${progress} (${stats})                    `);
+            }
+            return;
+          }
+          throw error;
+        }
+
+        const durationMs = performance.now() - startTime;
+        const result = loopResult.finalResult;
+        const hasError = "error" in result;
+
+        // Create debug log with full history
+        const debugLog = [];
+        for (let i = 0; i < loopResult.responses.length; i++) {
+          debugLog.push({
+            step: i,
+            type: "llm_request",
+            data: loopResult.requests[i],
+          });
+          debugLog.push({
+            step: i,
+            type: "llm_response",
+            data: loopResult.responses[i],
+          });
+        }
+        debugLog.push({
+          step: loopResult.responses.length,
+          type: "final_result",
+          data: result,
+        });
+
+        if (hasError) {
+          const logPath = join(failDir, `prompt-${index}-run-${idx}-error.json`);
+          await writeFile(logPath, JSON.stringify(debugLog, null, 2), "utf-8");
+          if (runs === 1) {
+            console.log(`${RED}ERROR: API error${RESET}`);
+            console.log(`${RED}Log:${RESET} ${logPath}\n`);
+          }
+          promptFailed++;
+          runResults.push({ passed: false, durationMs });
+          
+          // Update progress
+          completed++;
+          if (runs > 1) {
+            const progress = `${completed}/${runs}`;
+            const stats = `${promptPassed} ✓, ${promptFailed} ✗`;
+            process.stderr.write(`\r${BLUE}Progress:${RESET} ${progress} (${stats})                    `);
+          }
+          return;
+        }
+
+        const answer = params.adapter.extractAnswer(result);
+
+        if (!answer) {
+          const logPath = join(failDir, `prompt-${index}-run-${idx}-no-answer.json`);
+          await writeFile(logPath, JSON.stringify(debugLog, null, 2), "utf-8");
+          if (runs === 1) {
+            console.log(`${RED}FAIL: No <answer> block found${RESET}`);
+            console.log(`${RED}Log:${RESET} ${logPath}\n`);
+          }
+          promptFailed++;
+          runResults.push({ passed: false, durationMs });
+          
+          // Update progress
+          completed++;
+          if (runs > 1) {
+            const progress = `${completed}/${runs}`;
+            const stats = `${promptPassed} ✓, ${promptFailed} ✗`;
+            process.stderr.write(`\r${BLUE}Progress:${RESET} ${progress} (${stats})                    `);
+          }
+          return;
+        }
+
+        if (runs === 1) {
+          console.log(`${BLUE}Answer:${RESET} ${answer}\n`);
+        }
+
+        // Run the expectation callback
+        try {
+          const passed = testPrompt.expectation(answer);
+          if (passed) {
+            if (runs === 1) {
+              console.log(`${SUCCESS} ${GREEN}PASS${RESET}\n`);
+            }
+            promptPassed++;
+            runResults.push({ passed: true, durationMs });
+
+            // Record successful tool pattern in VCR (only in record mode, not in minimal strategy)
+            if (params.vcr && params.vcrMode === "record" && params.strategy !== "minimal") {
+              const expectationsHash = createHash("sha256")
+                .update(testPrompt.expectation.toString())
+                .digest("hex")
+                .slice(0, 16);
+              
+              // Extract tool names from assistant messages with tool calls
+              const toolsCalled: string[] = [];
+              for (const msg of loopResult.messages) {
+                if (msg.role === "assistant" && msg.tool_calls) {
+                  for (const toolCall of msg.tool_calls) {
+                    toolsCalled.push(toolCall.function.name);
+                  }
                 }
               }
+              
+              if (toolsCalled.length > 0) {
+                params.vcr.recordSuccessfulPattern(testPrompt.prompt, expectationsHash, toolsCalled);
+              }
             }
-            
-            if (toolsCalled.length > 0) {
-              params.vcr.recordSuccessfulPattern(testPrompt.prompt, expectationsHash, toolsCalled);
+          } else {
+            const logPath = join(failDir, `prompt-${index}-run-${idx}-expectation-failed.json`);
+            const failLog = [...debugLog, { type: "expectation_result", answer, passed: false }];
+            await writeFile(logPath, JSON.stringify(failLog, null, 2), "utf-8");
+            if (runs === 1) {
+              console.log(`${BLUE}Answer:${RESET} ${answer}`);
+              console.log(`${FAILURE} ${RED}FAIL: Expectation not met${RESET}`);
+              console.log(`${RED}Log:${RESET} ${logPath}\n`);
             }
+            promptFailed++;
+            runResults.push({ passed: false, durationMs });
           }
-        } else {
-          const logPath = join(failDir, `prompt-${index}-run-${runIdx}-expectation-failed.json`);
-          const failLog = [...debugLog, { type: "expectation_result", answer, passed: false }];
-          await writeFile(logPath, JSON.stringify(failLog, null, 2), "utf-8");
+        } catch (error) {
+          const logPath = join(failDir, `prompt-${index}-run-${idx}-expectation-error.json`);
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          const errorLog = [...debugLog, { type: "expectation_error", answer, error: errorMessage }];
+          await writeFile(logPath, JSON.stringify(errorLog, null, 2), "utf-8");
           if (runs === 1) {
             console.log(`${BLUE}Answer:${RESET} ${answer}`);
-            console.log(`${FAILURE} ${RED}FAIL: Expectation not met${RESET}`);
+            console.log(`${FAILURE} ${RED}FAIL: Expectation threw error: ${errorMessage}${RESET}`);
             console.log(`${RED}Log:${RESET} ${logPath}\n`);
           }
           promptFailed++;
           runResults.push({ passed: false, durationMs });
         }
-      } catch (error) {
-        const logPath = join(failDir, `prompt-${index}-run-${runIdx}-expectation-error.json`);
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        const errorLog = [...debugLog, { type: "expectation_error", answer, error: errorMessage }];
-        await writeFile(logPath, JSON.stringify(errorLog, null, 2), "utf-8");
-        if (runs === 1) {
-          console.log(`${BLUE}Answer:${RESET} ${answer}`);
-          console.log(`${FAILURE} ${RED}FAIL: Expectation threw error: ${errorMessage}${RESET}`);
-          console.log(`${RED}Log:${RESET} ${logPath}\n`);
-        }
-        promptFailed++;
-        runResults.push({ passed: false, durationMs });
-      }
 
-      totalRuns++;
+        totalRuns++;
+        
+        // Update progress
+        completed++;
+        if (runs > 1) {
+          const progress = `${completed}/${runs}`;
+          const stats = `${promptPassed} ✓, ${promptFailed} ✗`;
+          process.stderr.write(`\r${BLUE}Progress:${RESET} ${progress} (${stats})                    `);
+      }
+    };
+
+    // Execute runs with a worker pool to maintain constant concurrency
+    const workers: Promise<void>[] = [];
+    let nextRunIdx = 0;
+
+    // Worker function that processes runs from the queue
+    const worker = async () => {
+      while (nextRunIdx < runs) {
+        const idx = nextRunIdx++;
+        await processRun(idx);
+      }
+    };
+
+    // Start the worker pool
+    for (let i = 0; i < Math.min(concurrency, runs); i++) {
+      workers.push(worker());
     }
+
+    // Wait for all workers to complete
+    await Promise.all(workers);
 
     // Display results for this prompt
     if (runs > 1) {
