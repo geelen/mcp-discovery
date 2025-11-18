@@ -154,7 +154,7 @@ async function main() {
     
     const stats = vcr.getStats();
     console.log(`VCR mode: ${vcrMode}`);
-    console.log(`VCR cache: ${stats.totalCalls} calls, ${stats.uniqueTools} unique tools\n`);
+    console.log(`VCR cache: ${stats.totalCalls} calls, ${stats.uniqueTools} unique tools, ${stats.registeredTools} registered tools\n`);
   }
 
   // Load MCP server configs (but don't start them in replay mode)
@@ -188,9 +188,20 @@ async function main() {
     let loadedServerIds: string[];
 
     if (replayMode) {
-      // In replay mode, create an empty registry - VCR will handle all tool calls
-      console.log("Creating stub tool registry for VCR replay\n");
-      toolRegistry = { tools: [], byName: new Map() };
+      // In replay mode, load tool registry from VCR
+      if (!vcr) {
+        console.error("Error: VCR must be initialized in replay mode");
+        process.exit(1);
+      }
+      
+      const loadedRegistry = vcr.loadToolRegistry();
+      if (!loadedRegistry) {
+        console.error("Error: No tools found in VCR database. Run with --record first to populate the tool registry.");
+        process.exit(1);
+      }
+      
+      console.log(`Loaded ${loadedRegistry.tools.length} tools from VCR\n`);
+      toolRegistry = loadedRegistry;
       loadedServerIds = serverIdsForReplay;
     } else if (selectedServers.length > 0) {
       console.log(`Starting ${selectedServers.length} MCP server(s)...`);
@@ -200,6 +211,12 @@ async function main() {
       toolRegistry = await allDiscoveryStrategy(mcpClients);
       console.log(`Discovered ${toolRegistry.tools.length} tools`);
       loadedServerIds = selectedServers.map(s => s.id);
+      
+      // In record mode, save the tool registry to VCR
+      if (recordMode && vcr) {
+        vcr.saveToolRegistry(toolRegistry.tools);
+        console.log(`Saved ${toolRegistry.tools.length} tools to VCR\n`);
+      }
     } else {
       console.log("No MCP servers specified, running without tools");
       toolRegistry = { tools: [], byName: new Map() };

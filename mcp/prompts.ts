@@ -66,9 +66,9 @@ export const prompts: TestPrompt[] = [
     expectation: (answer) => /\d+/.test(answer) && (!answer.includes("0") || !!answer.match(/[1-9]/))
   },
   {
-    prompt: "Use Playwright to go to example.org (note: .org not .com) and read the text of the first paragraph. Return it between <answer></answer> tags.",
+    prompt: "Use Playwright to go to example.org (note: .org not .com) and read the first paragraph. Return it between <answer></answer> tags.",
     servers: ["playwright"],
-    expectation: (answer) => answer.length >= 50 && answer.toLowerCase().includes("domain")
+    expectation: (answer) => answer.length >= 50 && answer.toLowerCase().includes("This domain is for use in documentation examples without needing permission. Avoid use in operations".toLowerCase())
   },
   {
     prompt: "Use trends to find the top 5 trending topics across all platforms, then tell me how many of them are related to technology or AI (return just the number between <answer></answer> tags).",

@@ -1,5 +1,6 @@
 import { Database } from "bun:sqlite";
 import { createHash } from "crypto";
+import type { ToolRegistry, RegisteredTool } from "../types/index.js";
 
 export class VCR {
   private db: Database;
@@ -25,6 +26,17 @@ export class VCR {
     this.db.run(`
       CREATE INDEX IF NOT EXISTS idx_tool_calls_lookup 
       ON tool_calls(tool_name, args_hash)
+    `);
+
+    this.db.run(`
+      CREATE TABLE IF NOT EXISTS tools (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        tool_name TEXT NOT NULL UNIQUE,
+        description TEXT,
+        input_schema TEXT NOT NULL,
+        server_name TEXT,
+        updated_at INTEGER NOT NULL
+      )
     `);
   }
 
@@ -67,7 +79,66 @@ export class VCR {
     );
   }
 
-  getStats(): { totalCalls: number; uniqueTools: number } {
+  saveToolRegistry(tools: RegisteredTool[]): void {
+    // Clear existing tools
+    this.db.run("DELETE FROM tools");
+
+    // Insert all tools
+    const stmt = this.db.prepare(
+      `INSERT INTO tools (tool_name, description, input_schema, server_name, updated_at)
+       VALUES (?, ?, ?, ?, ?)`
+    );
+
+    const updatedAt = Date.now();
+    for (const tool of tools) {
+      stmt.run(
+        tool.name,
+        tool.description ?? null,
+        JSON.stringify(tool.inputSchema),
+        tool.serverName ?? null,
+        updatedAt
+      );
+    }
+  }
+
+  loadToolRegistry(): ToolRegistry | null {
+    const rows = this.db
+      .query<
+        {
+          tool_name: string;
+          description: string | null;
+          input_schema: string;
+          server_name: string | null;
+        },
+        []
+      >("SELECT tool_name, description, input_schema, server_name FROM tools")
+      .all();
+
+    if (rows.length === 0) {
+      return null;
+    }
+
+    const tools: RegisteredTool[] = rows.map((row) => ({
+      name: row.tool_name,
+      description: row.description ?? undefined,
+      inputSchema: JSON.parse(row.input_schema),
+      serverName: row.server_name ?? undefined,
+      invoke: async () => {
+        throw new Error(
+          `Cannot invoke tool ${row.tool_name} - VCR replay should handle this via cache`
+        );
+      },
+    }));
+
+    const byName = new Map<string, RegisteredTool>();
+    for (const tool of tools) {
+      byName.set(tool.name, tool);
+    }
+
+    return { tools, byName };
+  }
+
+  getStats(): { totalCalls: number; uniqueTools: number; registeredTools: number } {
     const totalRow = this.db
       .query<{ count: number }, []>("SELECT COUNT(*) as count FROM tool_calls")
       .get();
@@ -78,9 +149,14 @@ export class VCR {
       )
       .get();
 
+    const registeredRow = this.db
+      .query<{ count: number }, []>("SELECT COUNT(*) as count FROM tools")
+      .get();
+
     return {
       totalCalls: totalRow?.count ?? 0,
       uniqueTools: toolsRow?.count ?? 0,
+      registeredTools: registeredRow?.count ?? 0,
     };
   }
 
