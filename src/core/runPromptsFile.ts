@@ -28,6 +28,8 @@ export async function runPromptsFile(params: {
   loadedServers: string[];
   vcr?: VCR;
   vcrMode?: "record" | "replay";
+  runs?: number;
+  concurrency?: number;
 }): Promise<number> {
   // Parse the file spec (e.g., "mcp/prompts.ts:0")
   const colonIndex = params.promptsFileSpec.lastIndexOf(":");
@@ -75,7 +77,15 @@ export async function runPromptsFile(params: {
     return 1;
   }
 
-  console.log(`${BLUE}Running ${promptsToRun.length} prompt(s) from ${filePath}${RESET}\n`);
+  const runs = params.runs ?? 1;
+  const concurrency = params.concurrency ?? 1;
+
+  if (runs > 1) {
+    console.log(`${BLUE}Running ${promptsToRun.length} prompt(s) from ${filePath}${RESET}`);
+    console.log(`${BLUE}Benchmark mode: ${runs} runs per prompt, concurrency ${concurrency}${RESET}\n`);
+  } else {
+    console.log(`${BLUE}Running ${promptsToRun.length} prompt(s) from ${filePath}${RESET}\n`);
+  }
 
   // Create temp directory for logs
   const tempRoot = await mkdtemp(join(tmpdir(), "mcp-prompts-"));
@@ -88,11 +98,15 @@ export async function runPromptsFile(params: {
   let totalFailed = 0;
   let totalSkipped = 0;
   let totalCacheMiss = 0;
+  let totalRuns = 0;
 
   for (const { index, prompt: testPrompt } of promptsToRun) {
     console.log(`${"─".repeat(60)}`);
     console.log(`${BLUE}Prompt ${index}:${RESET} ${testPrompt.prompt.slice(0, 80)}${testPrompt.prompt.length > 80 ? "..." : ""}`);
     console.log(`${BLUE}Servers:${RESET} ${testPrompt.servers.join(", ")}`);
+    if (runs > 1) {
+      console.log(`${BLUE}Runs:${RESET} ${runs} (concurrency: ${concurrency})`);
+    }
     console.log(`${"─".repeat(60)}\n`);
 
     // Check if all required servers are loaded
@@ -103,100 +117,159 @@ export async function runPromptsFile(params: {
       continue;
     }
 
-    let loopResult;
-    try {
-      loopResult = await runToolLoop({
-        adapter: params.adapter,
-        registry: params.registry,
-        model: params.model,
-        userPrompt: testPrompt.prompt,
-        logToStderr: false,
-        vcr: params.vcr,
-        vcrMode: params.vcrMode,
+    // Run the prompt multiple times if in benchmark mode
+    const runResults: { passed: boolean; durationMs: number }[] = [];
+    let promptPassed = 0;
+    let promptFailed = 0;
+    let promptCacheMiss = 0;
+
+    for (let runIdx = 0; runIdx < runs; runIdx++) {
+      const startTime = performance.now();
+
+      let loopResult;
+      try {
+        loopResult = await runToolLoop({
+          adapter: params.adapter,
+          registry: params.registry,
+          model: params.model,
+          userPrompt: testPrompt.prompt,
+          logToStderr: false,
+          vcr: params.vcr,
+          vcrMode: params.vcrMode,
+        });
+      } catch (error) {
+        if (error instanceof VCRCacheMissError) {
+          if (runs === 1) {
+            console.log(`${YELLOW}VCR CACHE MISS: ${error.message}${RESET}\n`);
+          }
+          promptCacheMiss++;
+          totalCacheMiss++;
+          continue;
+        }
+        throw error;
+      }
+
+      const durationMs = performance.now() - startTime;
+      const result = loopResult.finalResult;
+      const hasError = "error" in result;
+
+      // Create debug log with full history
+      const debugLog = [];
+      for (let i = 0; i < loopResult.responses.length; i++) {
+        debugLog.push({
+          step: i,
+          type: "llm_request",
+          data: loopResult.requests[i],
+        });
+        debugLog.push({
+          step: i,
+          type: "llm_response",
+          data: loopResult.responses[i],
+        });
+      }
+      debugLog.push({
+        step: loopResult.responses.length,
+        type: "final_result",
+        data: result,
       });
-    } catch (error) {
-      if (error instanceof VCRCacheMissError) {
-        console.log(`${YELLOW}VCR CACHE MISS: ${error.message}${RESET}\n`);
-        totalCacheMiss++;
+
+      if (hasError) {
+        const logPath = join(failDir, `prompt-${index}-run-${runIdx}-error.json`);
+        await writeFile(logPath, JSON.stringify(debugLog, null, 2), "utf-8");
+        if (runs === 1) {
+          console.log(`${RED}ERROR: API error${RESET}`);
+          console.log(`${RED}Log:${RESET} ${logPath}\n`);
+        }
+        promptFailed++;
+        runResults.push({ passed: false, durationMs });
         continue;
       }
-      throw error;
-    }
 
-    const result = loopResult.finalResult;
-    const hasError = "error" in result;
+      const answer = params.adapter.extractAnswer(result);
 
-    // Create debug log with full history
-    const debugLog = [];
-    for (let i = 0; i < loopResult.responses.length; i++) {
-      debugLog.push({
-        step: i,
-        type: "llm_request",
-        data: loopResult.requests[i],
-      });
-      debugLog.push({
-        step: i,
-        type: "llm_response",
-        data: loopResult.responses[i],
-      });
-    }
-    debugLog.push({
-      step: loopResult.responses.length,
-      type: "final_result",
-      data: result,
-    });
-
-    if (hasError) {
-      const logPath = join(failDir, `prompt-${index}-error.json`);
-      await writeFile(logPath, JSON.stringify(debugLog, null, 2), "utf-8");
-      console.log(`${RED}ERROR: API error${RESET}`);
-      console.log(`${RED}Log:${RESET} ${logPath}\n`);
-      totalFailed++;
-      continue;
-    }
-
-    const answer = params.adapter.extractAnswer(result);
-
-    if (!answer) {
-      const logPath = join(failDir, `prompt-${index}-no-answer.json`);
-      await writeFile(logPath, JSON.stringify(debugLog, null, 2), "utf-8");
-      console.log(`${RED}FAIL: No <answer> block found${RESET}`);
-      console.log(`${RED}Log:${RESET} ${logPath}\n`);
-      totalFailed++;
-      continue;
-    }
-
-    console.log(`${BLUE}Answer:${RESET} ${answer}\n`);
-
-    // Run the expectation callback
-    try {
-      const passed = testPrompt.expectation(answer);
-      if (passed) {
-        console.log(`${SUCCESS} ${GREEN}PASS${RESET}\n`);
-        totalPassed++;
-      } else {
-        const logPath = join(failDir, `prompt-${index}-expectation-failed.json`);
-        const failLog = [...debugLog, { type: "expectation_result", answer, passed: false }];
-        await writeFile(logPath, JSON.stringify(failLog, null, 2), "utf-8");
-        console.log(`${BLUE}Answer:${RESET} ${answer}`);
-        console.log(`${FAILURE} ${RED}FAIL: Expectation not met${RESET}`);
-        console.log(`${RED}Log:${RESET} ${logPath}\n`);
-        totalFailed++;
+      if (!answer) {
+        const logPath = join(failDir, `prompt-${index}-run-${runIdx}-no-answer.json`);
+        await writeFile(logPath, JSON.stringify(debugLog, null, 2), "utf-8");
+        if (runs === 1) {
+          console.log(`${RED}FAIL: No <answer> block found${RESET}`);
+          console.log(`${RED}Log:${RESET} ${logPath}\n`);
+        }
+        promptFailed++;
+        runResults.push({ passed: false, durationMs });
+        continue;
       }
-    } catch (error) {
-      const logPath = join(failDir, `prompt-${index}-expectation-error.json`);
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      const errorLog = [...debugLog, { type: "expectation_error", answer, error: errorMessage }];
-      await writeFile(logPath, JSON.stringify(errorLog, null, 2), "utf-8");
-      console.log(`${BLUE}Answer:${RESET} ${answer}`);
-      console.log(`${FAILURE} ${RED}FAIL: Expectation threw error: ${errorMessage}${RESET}`);
-      console.log(`${RED}Log:${RESET} ${logPath}\n`);
-      totalFailed++;
+
+      if (runs === 1) {
+        console.log(`${BLUE}Answer:${RESET} ${answer}\n`);
+      }
+
+      // Run the expectation callback
+      try {
+        const passed = testPrompt.expectation(answer);
+        if (passed) {
+          if (runs === 1) {
+            console.log(`${SUCCESS} ${GREEN}PASS${RESET}\n`);
+          }
+          promptPassed++;
+          runResults.push({ passed: true, durationMs });
+        } else {
+          const logPath = join(failDir, `prompt-${index}-run-${runIdx}-expectation-failed.json`);
+          const failLog = [...debugLog, { type: "expectation_result", answer, passed: false }];
+          await writeFile(logPath, JSON.stringify(failLog, null, 2), "utf-8");
+          if (runs === 1) {
+            console.log(`${BLUE}Answer:${RESET} ${answer}`);
+            console.log(`${FAILURE} ${RED}FAIL: Expectation not met${RESET}`);
+            console.log(`${RED}Log:${RESET} ${logPath}\n`);
+          }
+          promptFailed++;
+          runResults.push({ passed: false, durationMs });
+        }
+      } catch (error) {
+        const logPath = join(failDir, `prompt-${index}-run-${runIdx}-expectation-error.json`);
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        const errorLog = [...debugLog, { type: "expectation_error", answer, error: errorMessage }];
+        await writeFile(logPath, JSON.stringify(errorLog, null, 2), "utf-8");
+        if (runs === 1) {
+          console.log(`${BLUE}Answer:${RESET} ${answer}`);
+          console.log(`${FAILURE} ${RED}FAIL: Expectation threw error: ${errorMessage}${RESET}`);
+          console.log(`${RED}Log:${RESET} ${logPath}\n`);
+        }
+        promptFailed++;
+        runResults.push({ passed: false, durationMs });
+      }
+
+      totalRuns++;
     }
+
+    // Display results for this prompt
+    if (runs > 1) {
+      const durations = runResults.map(r => r.durationMs);
+      const avgDuration = durations.reduce((a, b) => a + b, 0) / durations.length;
+      const sortedDurations = [...durations].sort((a, b) => a - b);
+      const p50 = sortedDurations[Math.floor(sortedDurations.length * 0.5)];
+      const p95 = sortedDurations[Math.floor(sortedDurations.length * 0.95)];
+
+      console.log(`${BLUE}Results:${RESET}`);
+      console.log(`  ${GREEN}Passed:${RESET} ${promptPassed}/${runs}`);
+      console.log(`  ${RED}Failed:${RESET} ${promptFailed}/${runs}`);
+      if (promptCacheMiss > 0) {
+        console.log(`  ${YELLOW}Cache Miss:${RESET} ${promptCacheMiss}/${runs}`);
+      }
+      console.log(`${BLUE}Timing:${RESET}`);
+      console.log(`  Avg: ${avgDuration.toFixed(0)}ms`);
+      console.log(`  p50: ${p50.toFixed(0)}ms`);
+      console.log(`  p95: ${p95.toFixed(0)}ms\n`);
+    }
+
+    totalPassed += promptPassed;
+    totalFailed += promptFailed;
   }
 
   console.log(`${"═".repeat(60)}`);
   console.log(`${BLUE}Summary:${RESET}`);
+  if (runs > 1) {
+    console.log(`  ${BLUE}Total Runs:${RESET} ${totalRuns}`);
+  }
   console.log(`  ${GREEN}Passed:${RESET} ${totalPassed}`);
   console.log(`  ${RED}Failed:${RESET} ${totalFailed}`);
   console.log(`  ${YELLOW}Skipped:${RESET} ${totalSkipped}`);

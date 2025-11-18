@@ -235,13 +235,15 @@ async function main() {
       loadedServers: loadedServerIds,
       vcr,
       vcrMode,
+      runs,
+      concurrency,
     });
 
     await stopAllServers(mcpClients);
     if (vcr) vcr.close();
 
     process.exit(exitCode);
-  } else if (runs === 1) {
+  } else if (runs === 1 && !promptsFile) {
     // Single run mode - original behavior
     let mcpClients = [];
     let toolRegistry;
