@@ -7,6 +7,7 @@ export interface MinimalStrategyParams {
   fullRegistry: ToolRegistry;
   task: string;
   expectation: (answer: string) => boolean;
+  strict?: boolean;
 }
 
 export async function minimalDiscoveryStrategy(params: MinimalStrategyParams): Promise<ToolRegistry> {
@@ -29,7 +30,11 @@ export async function minimalDiscoveryStrategy(params: MinimalStrategyParams): P
   for (const toolName of toolNames) {
     const tool = params.fullRegistry.byName.get(toolName);
     if (tool) {
-      minimalTools.push(tool);
+      if (params.strict) {
+        minimalTools.push({ ...tool, strict: true });
+      } else {
+        minimalTools.push(tool);
+      }
     } else {
       console.warn(`Warning: Tool ${toolName} from successful pattern not found in registry`);
     }

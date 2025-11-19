@@ -35,6 +35,7 @@ export async function runPromptsFile(params: {
   runs?: number;
   concurrency?: number;
   strategy?: "all" | "minimal" | "all-relevant";
+  strict?: boolean;
 }): Promise<number> {
   // Parse the file spec (e.g., "mcp/prompts.ts:0")
   const colonIndex = params.promptsFileSpec.lastIndexOf(":");
@@ -167,6 +168,7 @@ export async function runPromptsFile(params: {
           fullRegistry: params.registry,
           task: testPrompt.prompt,
           expectation: testPrompt.expectation,
+          strict: params.strict,
         });
         console.log(`${BLUE}Tools:${RESET} ${activeRegistry.tools.length} (${activeRegistry.tools.map(t => t.name).join(", ")})`);
       } catch (error) {
@@ -179,6 +181,7 @@ export async function runPromptsFile(params: {
       activeRegistry = await allRelevantDiscoveryStrategy({
         fullRegistry: params.registry,
         servers: testPrompt.servers,
+        strict: params.strict,
       });
       console.log(`${BLUE}Tools:${RESET} ${activeRegistry.tools.length} (${activeRegistry.tools.map(t => t.name).join(", ")})`);
     } else {

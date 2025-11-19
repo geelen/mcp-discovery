@@ -19,6 +19,7 @@ function convertToolsToSchemas(registry: ToolRegistry): ToolSchema[] {
       name: tool.name,
       description: tool.description,
       parameters: tool.inputSchema,
+      strict: tool.strict,
     },
   }));
 }

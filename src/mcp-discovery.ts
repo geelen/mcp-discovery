@@ -61,7 +61,19 @@ async function main() {
     process.exit(0);
   }
 
-  const strategy = positionals[0] as "all" | "minimal" | "all-relevant" | undefined;
+  const strategyArg = positionals[0] as string | undefined;
+  let strategy: "all" | "minimal" | "all-relevant" | undefined;
+  let strictStrategy = false;
+
+  if (strategyArg) {
+    const parts = strategyArg.split(":");
+    const baseStrategy = parts[0];
+    if (parts.length > 1 && parts[1] === "strict") {
+        strictStrategy = true;
+    }
+    strategy = baseStrategy as "all" | "minimal" | "all-relevant";
+  }
+
   const modelSpec = values.m as string | undefined;
   const serversSpec = values.s as string | undefined;
   const prompt = values.p as string | undefined;
@@ -218,7 +230,7 @@ async function main() {
       mcpClients = await startServersFromConfig(selectedServers);
 
       console.log("Discovering tools...");
-      toolRegistry = await allDiscoveryStrategy(mcpClients);
+      toolRegistry = await allDiscoveryStrategy(mcpClients, { strict: strictStrategy });
       console.log(`Discovered ${toolRegistry.tools.length} tools`);
       loadedServerIds = selectedServers.map(s => s.id);
       
@@ -249,6 +261,7 @@ async function main() {
       runs,
       concurrency,
       strategy,
+      strict: strictStrategy,
     });
 
     await stopAllServers(mcpClients);
@@ -265,7 +278,7 @@ async function main() {
       mcpClients = await startServersFromConfig(selectedServers);
 
       console.log("Discovering tools...");
-      toolRegistry = await allDiscoveryStrategy(mcpClients);
+      toolRegistry = await allDiscoveryStrategy(mcpClients, { strict: strictStrategy });
       console.log(`Discovered ${toolRegistry.tools.length} tools`);
     } else {
       console.log("No MCP servers specified, running without tools");

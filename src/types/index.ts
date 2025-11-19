@@ -25,6 +25,7 @@ export type ToolSchema = {
     name: string;
     description?: string;
     parameters: Json;
+    strict?: boolean;
   };
 };
 
@@ -34,6 +35,7 @@ export type DiscoveredTool = {
   inputSchema: Json;
   serverId: string;
   invoke: (args: Json) => Promise<Json>;
+  strict?: boolean;
 };
 
 export type ToolRegistry = {

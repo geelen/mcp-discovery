@@ -1,6 +1,6 @@
 import type { ToolDiscoveryStrategy, ToolRegistry, DiscoveredTool, McpClient } from "../../types/index.js";
 
-export const allDiscoveryStrategy: ToolDiscoveryStrategy = async (mcpClients: McpClient[]): Promise<ToolRegistry> => {
+export const allDiscoveryStrategy = async (mcpClients: McpClient[], options?: { strict?: boolean }): Promise<ToolRegistry> => {
   const discoveredTools: DiscoveredTool[] = [];
 
   for (const client of mcpClients) {
@@ -17,6 +17,7 @@ export const allDiscoveryStrategy: ToolDiscoveryStrategy = async (mcpClients: Mc
         invoke: async (args) => {
           return await client.callTool(tool.name, args);
         },
+        strict: options?.strict,
       });
     }
   }
