@@ -39,20 +39,36 @@ function percentile(sorted: number[], p: number): number {
 
 export async function runBenchmark(config: BenchmarkConfig): Promise<number> {
   console.log(RESET);
-  const tempRoot = await mkdtemp(join(tmpdir(), "mcp-discovery-"));
+  const now = new Date();
+  const timestamp = now.toISOString().replace(/[-:T]/g, "").slice(0, 14);
+  const [provider, modelName] = config.model.split(":");
+  const safeModel = modelName.replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
+  const safeProvider = provider.replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
+  const logDirName = `mcp_discovery_${timestamp}_${safeProvider}_${safeModel}_all_${config.runs}_${config.concurrency}`;
+  const tempRoot = join(tmpdir(), logDirName);
+  
   const successDir = join(tempRoot, "success");
   const failDir = join(tempRoot, "fail");
   
-  await mkdir(successDir);
-  await mkdir(failDir);
+  await mkdir(successDir, { recursive: true });
+  await mkdir(failDir, { recursive: true });
   
-  // Generate prompts.ts for this run
-  const promptsContent = `
-export const prompts = [
-  {
-    prompt: ${JSON.stringify(config.prompt)},
-    servers: ${JSON.stringify(config.serverConfigs.map(s => s.id))},
-    expectation: (answer: string) => {
+  // Generate metadata file
+  const metadata = {
+    timestamp: now.toISOString(),
+    config: {
+      model: config.model,
+      strategy: "all",
+      runs: config.runs,
+      concurrency: config.concurrency,
+      cliPrompt: config.prompt,
+      expectations: config.expectations || [],
+    },
+    prompts: [
+      {
+        prompt: config.prompt,
+        servers: config.serverConfigs.map(s => s.id),
+        expectation: `(answer: string) => {
       const expectations = ${JSON.stringify(config.expectations || [])};
       if (expectations.length === 0) return true;
       
@@ -67,11 +83,12 @@ export const prompts = [
         
       const normalizedAnswer = normalize(answer);
       return expectations.every(exp => normalizedAnswer.includes(normalize(exp)));
-    }
-  }
-];
-`;
-  await writeFile(join(tempRoot, "prompts.ts"), promptsContent);
+    }`
+      }
+    ]
+  };
+  
+  await writeFile(join(tempRoot, "_metadata.json"), JSON.stringify(metadata, null, 2));
 
   console.log(`📁 Logs directory: ${tempRoot}\n`);
 

@@ -91,12 +91,41 @@ export async function runPromptsFile(params: {
   }
 
   // Create temp directory for logs
-  const tempRoot = await mkdtemp(join(tmpdir(), "mcp-prompts-"));
+  const now = new Date();
+  const timestamp = now.toISOString().replace(/[-:T]/g, "").slice(0, 14);
+  const [provider, modelName] = params.model.split(":");
+  const safeModel = modelName.replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
+  const safeProvider = provider.replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
+  const logDirName = `mcp_discovery_${timestamp}_${safeProvider}_${safeModel}_${params.strategy || "all"}_${runs}_${concurrency}`;
+  const tempRoot = join(tmpdir(), logDirName);
+  
+  await mkdir(tempRoot);
   const failDir = join(tempRoot, "fail");
   await mkdir(failDir);
 
-  // Copy prompts file to logs directory
-  await copyFile(absolutePath, join(tempRoot, "prompts.ts"));
+  // Write metadata file
+  const metadata = {
+    timestamp: now.toISOString(),
+    config: {
+      model: params.model,
+      strategy: params.strategy || "all",
+      runs,
+      concurrency,
+      promptsFileSpec: params.promptsFileSpec,
+    },
+    vcr: params.vcr ? {
+      mode: params.vcrMode,
+      stats: params.vcr.getStats(),
+    } : undefined,
+    prompts: promptsToRun.map(p => ({
+      index: p.index,
+      prompt: p.prompt.prompt,
+      servers: p.prompt.servers,
+      expectation: p.prompt.expectation.toString(),
+    })),
+  };
+  
+  await writeFile(join(tempRoot, "_metadata.json"), JSON.stringify(metadata, null, 2));
   
   console.log(`📁 Logs directory: ${tempRoot}\n`);
 
