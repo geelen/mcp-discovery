@@ -35,8 +35,11 @@ Usage:
 Arguments:
   <strategy>           Tool discovery strategy (currently: 'all')
                        - all: Include all tools from all servers
-                       - browse: [Not implemented] Interactive tool browsing
-                       - search: [Not implemented] Search-based tool discovery
+                       - minimal: Use VCR cache to find minimal set of tools for task
+                       - all-relevant: Filter tools by server ID
+                       
+                       Suffix with :strict to enable strict tool definition mode
+                       Example: all:strict, minimal:strict
 
   -m <provider:model>  Provider and model specification
                        Format: provider:model
