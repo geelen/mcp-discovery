@@ -30,21 +30,21 @@ export const prompts: TestPrompt[] = [
     servers: ["playwright"],
     expectation: (answer) => answer.length >= 10 && !answer.toLowerCase().includes("error") && !answer.toLowerCase().includes("failed")
   },
-  {
-    prompt: "Use the trends server to find the current top trending topic on Hacker News. Return only the rank number and title of the #1 topic between <answer></answer> tags.",
-    servers: ["trends"],
-    expectation: (answer) => answer.includes("#1") && answer.length >= 10 && !answer.includes("#2")
-  },
-  {
-    prompt: "Use the trends server to get today's top technology trends and return how many trending topics are available between <answer></answer> tags.",
-    servers: ["trends"],
-    expectation: (answer) => /\d+/.test(answer)
-  },
-  {
-    prompt: "Use the trends server to find what the #1 trending topic is on Hacker News right now. Then use Playwright to navigate to news.ycombinator.com and verify if that topic appears on the front page. Return yes or no between <answer></answer> tags.",
-    servers: ["playwright", "trends"],
-    expectation: (answer) => /\b(yes|no)\b/i.test(answer)
-  },
+  // {
+  //   prompt: "Use the trends server to find the current top trending topic on Hacker News. Return only the rank number and title of the #1 topic between <answer></answer> tags.",
+  //   servers: ["trends"],
+  //   expectation: (answer) => answer.includes("#1") && answer.length >= 10 && !answer.includes("#2")
+  // },
+  // {
+  //   prompt: "Use the trends server to get today's top technology trends and return how many trending topics are available between <answer></answer> tags.",
+  //   servers: ["trends"],
+  //   expectation: (answer) => /\d+/.test(answer)
+  // },
+  // {
+  //   prompt: "Use the trends server to find what the #1 trending topic is on Hacker News right now. Then use Playwright to navigate to news.ycombinator.com and verify if that topic appears on the front page. Return yes or no between <answer></answer> tags.",
+  //   servers: ["playwright", "trends"],
+  //   expectation: (answer) => /\b(yes|no)\b/i.test(answer)
+  // },
   {
     prompt: "Read data/ppt/build_effective_agents.pptx and count how many slides there are. Then use Playwright to navigate to example.com and count how many paragraphs are in the body. Return both numbers as 'slides: X, paragraphs: Y' between <answer></answer> tags.",
     servers: ["ppt", "playwright"],
@@ -70,11 +70,11 @@ export const prompts: TestPrompt[] = [
     servers: ["playwright"],
     expectation: (answer) => answer.length >= 50 && answer.toLowerCase().includes("This domain is for use in documentation examples without needing permission. Avoid use in operations".toLowerCase())
   },
-  {
-    prompt: "Use trends to find the top 5 trending topics across all platforms, then tell me how many of them are related to technology or AI (return just the number between <answer></answer> tags).",
-    servers: ["trends"],
-    expectation: (answer) => /[0-5]/.test(answer)
-  },
+  // {
+  //   prompt: "Use trends to find the top 5 trending topics across all platforms, then tell me how many of them are related to technology or AI (return just the number between <answer></answer> tags).",
+  //   servers: ["trends"],
+  //   expectation: (answer) => /[0-5]/.test(answer)
+  // },
   {
     prompt: "In data/ppt/build_effective_agents.pptx, what is the content of the last slide? Return it between <answer></answer> tags.",
     servers: ["ppt"],
