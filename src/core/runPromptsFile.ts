@@ -99,7 +99,8 @@ export async function runPromptsFile(params: {
   const logDirName = `mcp_discovery_${timestamp}_${safeProvider}_${safeModel}_${params.strategy || "all"}_${runs}_${concurrency}`;
   const tempRoot = join(tmpdir(), logDirName);
   
-  await mkdir(tempRoot);
+  const successDir = join(tempRoot, "success");
+  await mkdir(successDir);
   const failDir = join(tempRoot, "fail");
   await mkdir(failDir);
 
@@ -300,6 +301,11 @@ export async function runPromptsFile(params: {
             promptPassed++;
             runResults.push({ passed: true, durationMs });
 
+            // Log successful run
+            const logPath = join(successDir, `prompt-${index}-run-${idx}-success.json`);
+            const successLog = [...debugLog, { type: "expectation_result", answer, passed: true }];
+            await writeFile(logPath, JSON.stringify(successLog, null, 2), "utf-8");
+
             // Record successful tool pattern in VCR (only in record mode, not in minimal strategy)
             if (params.vcr && params.vcrMode === "record" && params.strategy !== "minimal") {
               const expectationsHash = createHash("sha256")
@@ -416,6 +422,29 @@ export async function runPromptsFile(params: {
   if (totalCacheMiss > 0) {
     console.log(`  ${YELLOW}VCR Cache Miss:${RESET} ${totalCacheMiss}`);
   }
+
+  // Compress success logs
+  if (totalPassed > 0) {
+    try {
+      const tarFile = join(tempRoot, "success.tar.gz");
+      const tarProc = Bun.spawn(
+        ["tar", "-czf", tarFile, "-C", tempRoot, "success"],
+        {
+          stdout: "pipe",
+          stderr: "pipe",
+        },
+      );
+      await tarProc.exited;
+
+      await Bun.spawn(["rm", "-rf", successDir], {
+        stdout: "pipe",
+        stderr: "pipe",
+      }).exited;
+    } catch (error) {
+      console.log(`${YELLOW}Warning: Failed to compress success logs${RESET}`);
+    }
+  }
+
   console.log(`${"═".repeat(60)}\n`);
 
   return totalFailed > 0 ? 1 : 0;
