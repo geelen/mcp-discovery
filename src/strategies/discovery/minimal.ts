@@ -1,4 +1,4 @@
-import type { ToolRegistry, RegisteredTool } from "../../types/index.js";
+import type { ToolRegistry, DiscoveredTool } from "../../types/index.js";
 import type { VCR } from "../../mcp/vcr.js";
 import { createHash } from "crypto";
 
@@ -25,7 +25,7 @@ export async function minimalDiscoveryStrategy(params: MinimalStrategyParams): P
   }
 
   // Filter the full registry to only include the tools from the pattern
-  const minimalTools: RegisteredTool[] = [];
+  const minimalTools: DiscoveredTool[] = [];
   for (const toolName of toolNames) {
     const tool = params.fullRegistry.byName.get(toolName);
     if (tool) {
@@ -35,7 +35,7 @@ export async function minimalDiscoveryStrategy(params: MinimalStrategyParams): P
     }
   }
 
-  const byName = new Map<string, RegisteredTool>();
+  const byName = new Map<string, DiscoveredTool>();
   for (const tool of minimalTools) {
     byName.set(tool.name, tool);
   }

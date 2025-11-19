@@ -1,6 +1,6 @@
 import { Database } from "bun:sqlite";
 import { createHash } from "crypto";
-import type { ToolRegistry, RegisteredTool } from "../types/index.js";
+import type { ToolRegistry, DiscoveredTool } from "../types/index.js";
 
 export class VCR {
   private db: Database;
@@ -97,7 +97,7 @@ export class VCR {
     );
   }
 
-  saveToolRegistry(tools: RegisteredTool[]): void {
+  saveToolRegistry(tools: DiscoveredTool[]): void {
     // Clear existing tools
     this.db.run("DELETE FROM tools");
 
@@ -113,7 +113,7 @@ export class VCR {
         tool.name,
         tool.description ?? null,
         JSON.stringify(tool.inputSchema),
-        tool.serverName ?? null,
+        tool.serverId ?? null,
         updatedAt
       );
     }
@@ -136,11 +136,11 @@ export class VCR {
       return null;
     }
 
-    const tools: RegisteredTool[] = rows.map((row) => ({
+    const tools: DiscoveredTool[] = rows.map((row) => ({
       name: row.tool_name,
       description: row.description ?? undefined,
       inputSchema: JSON.parse(row.input_schema),
-      serverName: row.server_name ?? undefined,
+      serverId: row.server_name ?? "unknown", // Fallback for existing data if any
       invoke: async () => {
         throw new Error(
           `Cannot invoke tool ${row.tool_name} - VCR replay should handle this via cache`
@@ -148,7 +148,7 @@ export class VCR {
       },
     }));
 
-    const byName = new Map<string, RegisteredTool>();
+    const byName = new Map<string, DiscoveredTool>();
     for (const tool of tools) {
       byName.set(tool.name, tool);
     }

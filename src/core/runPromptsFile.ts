@@ -6,6 +6,7 @@ import type { CompletionsAdapter, ToolRegistry, CompletionsResponse, Completions
 import { runToolLoop, VCRCacheMissError } from "./toolLoop.js";
 import type { VCR } from "../mcp/vcr.js";
 import { minimalDiscoveryStrategy } from "../strategies/discovery/minimal.js";
+import { allRelevantDiscoveryStrategy } from "../strategies/discovery/all-relevant.js";
 
 const GREEN = "\x1b[32m";
 const RED = "\x1b[31m";
@@ -33,7 +34,7 @@ export async function runPromptsFile(params: {
   vcrMode?: "record" | "replay";
   runs?: number;
   concurrency?: number;
-  strategy?: "all" | "minimal";
+  strategy?: "all" | "minimal" | "all-relevant";
 }): Promise<number> {
   // Parse the file spec (e.g., "mcp/prompts.ts:0")
   const colonIndex = params.promptsFileSpec.lastIndexOf(":");
@@ -157,7 +158,7 @@ export async function runPromptsFile(params: {
       }
     }
 
-    // For minimal strategy, create a filtered registry per prompt
+    // For minimal/all-relevant strategy, create a filtered registry per prompt
     let activeRegistry = params.registry;
     if (params.strategy === "minimal" && params.vcr) {
       try {
@@ -174,6 +175,12 @@ export async function runPromptsFile(params: {
         totalSkipped++;
         continue;
       }
+    } else if (params.strategy === "all-relevant") {
+      activeRegistry = await allRelevantDiscoveryStrategy({
+        fullRegistry: params.registry,
+        servers: testPrompt.servers,
+      });
+      console.log(`${BLUE}Tools:${RESET} ${activeRegistry.tools.length} (${activeRegistry.tools.map(t => t.name).join(", ")})`);
     } else {
       console.log(`${BLUE}Tools:${RESET} ${params.registry.tools.length}`);
     }

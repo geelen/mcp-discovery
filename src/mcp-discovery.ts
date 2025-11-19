@@ -61,7 +61,7 @@ async function main() {
     process.exit(0);
   }
 
-  const strategy = positionals[0] as "all" | "minimal" | undefined;
+  const strategy = positionals[0] as "all" | "minimal" | "all-relevant" | undefined;
   const modelSpec = values.m as string | undefined;
   const serversSpec = values.s as string | undefined;
   const prompt = values.p as string | undefined;
@@ -87,7 +87,7 @@ async function main() {
   }
 
   const missingArgs: string[] = [];
-  if (!strategy) missingArgs.push("<strategy> (positional argument: 'all' or 'minimal')");
+  if (!strategy) missingArgs.push("<strategy> (positional argument: 'all', 'minimal', or 'all-relevant')");
   if (!modelSpec) missingArgs.push("-m <provider:model> (e.g., -m groq:llama-3.3-70b-versatile)");
   if (!prompt && !promptsFile) missingArgs.push("-p <prompt> OR -i <prompts-file> (e.g., -p \"What is the title?\" or -i mcp/prompts.ts:0)");
 
@@ -100,9 +100,9 @@ async function main() {
     process.exit(1);
   }
 
-  if (strategy !== "all" && strategy !== "minimal") {
+  if (strategy !== "all" && strategy !== "minimal" && strategy !== "all-relevant") {
     console.error(`Error: Strategy '${strategy}' is not yet implemented.`);
-    console.error(`       Only 'all' and 'minimal' are currently supported.\n`);
+    console.error(`       Only 'all', 'minimal', and 'all-relevant' are currently supported.\n`);
     process.exit(1);
   }
 
@@ -111,12 +111,12 @@ async function main() {
     process.exit(1);
   }
 
-  if (strategy === "minimal" && !promptsFile) {
-    console.error("Error: Minimal strategy only works with -i <prompts-file>\n");
+  if ((strategy === "minimal" || strategy === "all-relevant") && !promptsFile) {
+    console.error(`Error: Strategy '${strategy}' only works with -i <prompts-file>\n`);
     process.exit(1);
   }
 
-  const [providerKey, modelName] = modelSpec.split(":", 2);
+  const [providerKey, modelName] = (modelSpec!).split(":", 2);
   if (!providerKey || !modelName) {
     console.error(`Error: Invalid model specification '${modelSpec}'`);
     console.error(`       Model must be in format 'provider:model'`);
@@ -168,7 +168,7 @@ async function main() {
   }
 
   // Load MCP server configs (but don't start them in replay mode)
-  let selectedServers = [];
+  let selectedServers: any[] = [];
   let serverIdsForReplay: string[] = [];
   
   if (serversSpec) {
@@ -193,7 +193,7 @@ async function main() {
   // Branch between prompts file mode, single run, and benchmark mode
   if (promptsFile) {
     // Prompts file mode
-    let mcpClients = [];
+    let mcpClients: any[] = [];
     let toolRegistry;
     let loadedServerIds: string[];
 
@@ -257,7 +257,7 @@ async function main() {
     process.exit(exitCode);
   } else if (runs === 1 && !promptsFile) {
     // Single run mode - original behavior
-    let mcpClients = [];
+    let mcpClients: any[] = [];
     let toolRegistry;
 
     if (selectedServers.length > 0) {
@@ -295,7 +295,7 @@ async function main() {
       adapter,
       provider: providerKey,
       model: modelName,
-      prompt,
+      prompt: prompt!,
       serverConfigs: selectedServers,
       expectations: expectations.length > 0 ? expectations : undefined,
     });
