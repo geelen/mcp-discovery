@@ -7,6 +7,7 @@ import { runToolLoop, VCRCacheMissError } from "./toolLoop.js";
 import type { VCR } from "../mcp/vcr.js";
 import { minimalDiscoveryStrategy } from "../strategies/discovery/minimal.js";
 import { allRelevantDiscoveryStrategy } from "../strategies/discovery/all-relevant.js";
+import { analyzeFailure, printPromptStats, PromptStats } from "../lib/stats-helper.js";
 
 const GREEN = "\x1b[32m";
 const RED = "\x1b[31m";
@@ -197,6 +198,13 @@ export async function runPromptsFile(params: {
     let promptCacheMiss = 0;
     let completed = 0;
 
+    // Initialize detailed stats
+    const promptStats: PromptStats = {
+      text: testPrompt.prompt,
+      totalRuns: runs,
+      failures: new Map(),
+    };
+
     // Create a worker function that processes a single run
     const processRun = async (idx: number) => {
         const startTime = performance.now();
@@ -264,6 +272,8 @@ export async function runPromptsFile(params: {
             console.log(`${RED}Log:${RESET} ${logPath}\n`);
           }
           promptFailed++;
+          const failureType = analyzeFailure(debugLog);
+          promptStats.failures.set(failureType, (promptStats.failures.get(failureType) || 0) + 1);
           runResults.push({ passed: false, durationMs });
           
           // Update progress
@@ -286,6 +296,8 @@ export async function runPromptsFile(params: {
             console.log(`${RED}Log:${RESET} ${logPath}\n`);
           }
           promptFailed++;
+          const failureType = analyzeFailure(debugLog);
+          promptStats.failures.set(failureType, (promptStats.failures.get(failureType) || 0) + 1);
           runResults.push({ passed: false, durationMs });
           
           // Update progress
@@ -348,6 +360,8 @@ export async function runPromptsFile(params: {
               console.log(`${RED}Log:${RESET} ${logPath}\n`);
             }
             promptFailed++;
+            const failureType = analyzeFailure(failLog);
+            promptStats.failures.set(failureType, (promptStats.failures.get(failureType) || 0) + 1);
             runResults.push({ passed: false, durationMs });
           }
         } catch (error) {
@@ -361,6 +375,8 @@ export async function runPromptsFile(params: {
             console.log(`${RED}Log:${RESET} ${logPath}\n`);
           }
           promptFailed++;
+          const failureType = analyzeFailure(errorLog);
+          promptStats.failures.set(failureType, (promptStats.failures.get(failureType) || 0) + 1);
           runResults.push({ passed: false, durationMs });
         }
 
@@ -406,9 +422,8 @@ export async function runPromptsFile(params: {
       const p50 = sortedDurations[Math.floor(sortedDurations.length * 0.5)];
       const p95 = sortedDurations[Math.floor(sortedDurations.length * 0.95)];
 
-      console.log(`${BLUE}Results:${RESET}`);
-      console.log(`  ${GREEN}Passed:${RESET} ${promptPassed}/${runs}`);
-      console.log(`  ${RED}Failed:${RESET} ${promptFailed}/${runs}`);
+      printPromptStats(index, promptStats);
+
       if (promptCacheMiss > 0) {
         console.log(`  ${YELLOW}Cache Miss:${RESET} ${promptCacheMiss}/${runs}`);
       }

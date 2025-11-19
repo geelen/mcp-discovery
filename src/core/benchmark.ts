@@ -6,6 +6,7 @@ import type { CompletionsAdapter, McpServerConfig, ProviderConfig } from "../typ
 import { createServerPools, destroyServerPools, type ServerPool } from "../mcp/pools.js";
 import { runToolLoop } from "./toolLoop.js";
 import { checkExpectations } from "../util/expectations.js";
+import { analyzeFailure, printPromptStats, PromptStats } from "../lib/stats-helper.js";
 
 const GREEN = "\x1b[32m";
 const RED = "\x1b[31m";
@@ -107,6 +108,12 @@ export async function runBenchmark(config: BenchmarkConfig): Promise<number> {
   let passCount = 0;
   let failCount = 0;
 
+  const promptStats: PromptStats = {
+    text: config.prompt,
+    totalRuns: config.runs,
+    failures: new Map(),
+  };
+
   const nextRun = { value: 0 };
   function getNextRunId(): number | null {
     if (nextRun.value < config.runs) {
@@ -137,11 +144,34 @@ export async function runBenchmark(config: BenchmarkConfig): Promise<number> {
           logToStderr: false,
         });
 
+        // Reconstruct log for analysis
+        const debugLog: any[] = [];
+        for (let i = 0; i < loopResult.responses.length; i++) {
+          debugLog.push({
+            step: i,
+            type: "llm_request",
+            data: loopResult.requests[i],
+          });
+          debugLog.push({
+            step: i,
+            type: "llm_response",
+            data: loopResult.responses[i],
+          });
+        }
+
         const result = loopResult.finalResult;
+        debugLog.push({
+          step: loopResult.responses.length,
+          type: "final_result",
+          data: result,
+        });
 
         if ("error" in result) {
           errorData = result;
           pass = false;
+          
+          const failureType = analyzeFailure(debugLog);
+          promptStats.failures.set(failureType, (promptStats.failures.get(failureType) || 0) + 1);
         } else {
           resultData = result;
           
@@ -149,9 +179,16 @@ export async function runBenchmark(config: BenchmarkConfig): Promise<number> {
             const answer = config.adapter.extractAnswer(result);
             if (!answer) {
               pass = false;
+              const failureType = analyzeFailure(debugLog);
+              promptStats.failures.set(failureType, (promptStats.failures.get(failureType) || 0) + 1);
             } else {
               const { allFound } = checkExpectations(answer, config.expectations);
               pass = allFound;
+              if (!pass) {
+                 debugLog.push({ type: "expectation_result", answer, passed: false });
+                 const failureType = analyzeFailure(debugLog);
+                 promptStats.failures.set(failureType, (promptStats.failures.get(failureType) || 0) + 1);
+              }
             }
           } else {
             pass = true;
@@ -160,6 +197,10 @@ export async function runBenchmark(config: BenchmarkConfig): Promise<number> {
       } catch (error) {
         errorData = { error: String(error) };
         pass = false;
+
+        const errorLog: any[] = [{ type: "expectation_error", error: String(error) }];
+        const failureType = analyzeFailure(errorLog);
+        promptStats.failures.set(failureType, (promptStats.failures.get(failureType) || 0) + 1);
       }
 
       const durationMs = Date.now() - start;
@@ -260,11 +301,9 @@ export async function runBenchmark(config: BenchmarkConfig): Promise<number> {
 
   // Print summary
   console.log("\n" + "═".repeat(60));
-  console.log(`\n📊 Results:\n`);
-  console.log(`   Total runs:    ${config.runs}`);
-  console.log(`   ${SUCCESS} Passes:      ${GREEN}${passCount}${RESET}`);
-  console.log(`   ${FAILURE} Failures:    ${RED}${failCount}${RESET}`);
-  console.log(`   Pass rate:     ${((passCount / config.runs) * 100).toFixed(1)}%${RESET}`);
+  
+  printPromptStats("Benchmark", promptStats);
+
   console.log(`\n⏱  Latency:${RESET}`);
   console.log(`   Mean:          ${mean.toFixed(0)}ms${RESET}`);
   console.log(`   P50:           ${p50.toFixed(0)}ms${RESET}`);

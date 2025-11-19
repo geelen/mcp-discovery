@@ -1,27 +1,15 @@
 #!/usr/bin/env bun
 import { readdir, readFile, stat } from "fs/promises";
 import { join, basename } from "path";
+import { PromptStats, analyzeFailure, printPromptStats } from "./lib/stats-helper.js";
 
 // ANSI Colors
 const colors = {
-  reset: "\x1b[0m",
-  red: "\x1b[31m",
-  green: "\x1b[32m",
-  yellow: "\x1b[33m",
-  blue: "\x1b[34m",
-  magenta: "\x1b[35m",
-  cyan: "\x1b[36m",
   gray: "\x1b[90m",
-  bold: "\x1b[1m",
+  reset: "\x1b[0m",
 };
 
 const log = (color: keyof typeof colors, text: string) => `${colors[color]}${text}${colors.reset}`;
-
-interface PromptStats {
-  text: string;
-  totalRuns: number;
-  failures: Map<string, number>;
-}
 
 async function main() {
   const args = process.argv.slice(2);
@@ -148,46 +136,7 @@ async function main() {
           const promptStats = stats.get(key)!;
 
           // Analyze Failure
-          // We look at the last entry for the result
-          const lastEntry = entries[entries.length - 1];
-          let failureType = "Unknown Failure";
-          
-          // Check for network/parsing errors in llm_response or final_result
-          const errorEntry = entries.find(e => e.data?.error);
-          if (errorEntry) {
-             failureType = `Error: ${errorEntry.data.error.message || JSON.stringify(errorEntry.data.error)}`;
-          } else if (lastEntry.type === "expectation_result") {
-               if (lastEntry.answer) {
-                   failureType = `Returned: ${lastEntry.answer.trim()}`;
-               } else {
-                   failureType = "Missing Answer Block";
-               }
-          } else if (lastEntry.type === "final_result") {
-               if (lastEntry.data?.error) {
-                   failureType = `Error: ${lastEntry.data.error.message}`;
-               } else if (lastEntry.data?.choices?.[0]) {
-                   const choice = lastEntry.data.choices[0];
-                   if (choice.finish_reason === "length") {
-                       failureType = "Max Tokens Reached";
-                   } else {
-                       // Check content for answer block
-                       const content = choice.message?.content || "";
-                       const match = content.match(/<answer>(.*?)<\/answer>/s);
-                       if (match) {
-                           const answer = match[1].trim();
-                           failureType = answer ? `Returned: ${answer}` : "Returned: (empty)";
-                       } else {
-                           failureType = "Missing Answer Block";
-                       }
-                   }
-               } else {
-                   failureType = "Unknown Final Result";
-               }
-          } else {
-               // Check if there's a tool error that caused a halt?
-               failureType = `Ended with ${lastEntry.type}`;
-          }
-
+          const failureType = analyzeFailure(entries);
           promptStats.failures.set(failureType, (promptStats.failures.get(failureType) || 0) + 1);
 
       } catch (e) {
@@ -205,47 +154,7 @@ async function main() {
   });
 
   for (const key of sortedKeys) {
-      const { text, totalRuns, failures } = stats.get(key)!;
-      
-      // Calculate success
-      const totalFailures = [...failures.values()].reduce((a, b) => a + b, 0);
-      const successCount = Math.max(0, totalRuns - totalFailures);
-      const successRate = totalRuns > 0 ? Math.round((successCount / totalRuns) * 100) : 0;
-
-      console.log("\n" + log("cyan", "Prompt" + (typeof key === 'number' ? ` ${key}:` : ":")));
-      const lines = text.split('\n');
-      console.log(log("bold", lines[0] + (lines.length > 1 ? "..." : "")));
-      
-      if (totalRuns > 0) {
-          const color: keyof typeof colors = successRate === 100 ? "green" : (successRate > 80 ? "yellow" : "red");
-          console.log(log("gray", `Success Rate: `) + log(color, `${successRate}%`) + log("gray", ` (${successCount}/${totalRuns})`));
-      }
-      
-      console.log(log("gray", "-".repeat(40)));
-      
-      // Sort failures by count descending
-      const sortedFailures = [...failures.entries()].sort((a, b) => b[1] - a[1]);
-      
-      if (sortedFailures.length === 0) {
-           if (totalRuns > 0) {
-               console.log(log("green", "  No failures recorded."));
-           } else {
-               console.log(log("gray", "  No logs found."));
-           }
-      }
-      
-      for (const [failure, count] of sortedFailures) {
-          const countStr = count.toString().padEnd(4);
-          let color: keyof typeof colors = "magenta";
-          
-          if (failure.startsWith("Error")) color = "red";
-          else if (failure.startsWith("Returned")) color = "yellow";
-          else if (failure === "Missing Answer Block") color = "blue";
-          
-          const cleanFailure = failure.replace(/\n/g, "\\n").substring(0, 200) + (failure.length > 200 ? "..." : "");
-          
-          console.log(`${log(color, countStr)} ${cleanFailure}`);
-      }
+      printPromptStats(key, stats.get(key)!);
   }
 }
 
