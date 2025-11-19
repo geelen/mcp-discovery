@@ -36,7 +36,7 @@ Arguments:
   <strategy>           Tool discovery strategy (currently: 'all')
                        - all: Include all tools from all servers
                        - minimal: Use VCR cache to find minimal set of tools for task
-                       - all-relevant: Filter tools by server ID
+                       - all-relevant: Use only tools from servers specified in prompts file
                        
                        Suffix with :strict to enable strict tool definition mode
                        Example: all:strict, minimal:strict
@@ -112,6 +112,11 @@ Examples:
     -n 20 -c 4 \
     -x "4"
 
+  # Run with "all-relevant" strategy (requires prompts file)
+  bunx mcp-discovery all-relevant \
+    -m groq:llama-3.3-70b-versatile \
+    -i mcp/prompts.ts:0
+
   # Extract just the content from single run (filter out progress lines)
   bunx mcp-discovery all \
     -m groq:llama-3.3-70b-versatile \
@@ -161,6 +166,8 @@ src/
 ├── strategies/      Tool discovery strategies
 │   └── discovery/
 │       ├── all.ts   Include all tools
+│       ├── minimal.ts Use VCR cache for minimal set
+│       ├── all-relevant.ts Filter by relevant servers
 │       ├── browse   [Stub] Interactive browsing
 │       └── search   [Stub] Search-based discovery
 ├── mcp/            MCP client implementation
