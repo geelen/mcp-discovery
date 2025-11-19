@@ -19,6 +19,7 @@ type BenchmarkConfig = {
   runs: number;
   concurrency: number;
   adapter: CompletionsAdapter;
+  provider: string;
   model: string;
   prompt: string;
   serverConfigs: McpServerConfig[];
@@ -41,9 +42,8 @@ export async function runBenchmark(config: BenchmarkConfig): Promise<number> {
   console.log(RESET);
   const now = new Date();
   const timestamp = now.toISOString().replace(/[-:T]/g, "").slice(0, 14);
-  const [provider, modelName] = config.model.split(":");
-  const safeModel = modelName.replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
-  const safeProvider = provider.replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
+  const safeModel = config.model.replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
+  const safeProvider = config.provider.replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
   const logDirName = `mcp_discovery_${timestamp}_${safeProvider}_${safeModel}_all_${config.runs}_${config.concurrency}`;
   const tempRoot = join(tmpdir(), logDirName);
   
@@ -57,6 +57,7 @@ export async function runBenchmark(config: BenchmarkConfig): Promise<number> {
   const metadata = {
     timestamp: now.toISOString(),
     config: {
+      provider: config.provider,
       model: config.model,
       strategy: "all",
       runs: config.runs,

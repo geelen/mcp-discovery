@@ -239,6 +239,7 @@ async function main() {
     const exitCode = await runPromptsFile({
       adapter,
       registry: toolRegistry,
+      provider: providerKey,
       model: modelName,
       promptsFileSpec: promptsFile,
       cwd,
@@ -292,6 +293,7 @@ async function main() {
       runs,
       concurrency,
       adapter,
+      provider: providerKey,
       model: modelName,
       prompt,
       serverConfigs: selectedServers,

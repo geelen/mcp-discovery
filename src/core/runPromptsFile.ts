@@ -24,6 +24,7 @@ interface TestPrompt {
 export async function runPromptsFile(params: {
   adapter: CompletionsAdapter;
   registry: ToolRegistry;
+  provider: string;
   model: string;
   promptsFileSpec: string;
   cwd: string;
@@ -93,21 +94,21 @@ export async function runPromptsFile(params: {
   // Create temp directory for logs
   const now = new Date();
   const timestamp = now.toISOString().replace(/[-:T]/g, "").slice(0, 14);
-  const [provider, modelName] = params.model.split(":");
-  const safeModel = modelName.replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
-  const safeProvider = provider.replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
+  const safeModel = params.model.replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
+  const safeProvider = params.provider.replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
   const logDirName = `mcp_discovery_${timestamp}_${safeProvider}_${safeModel}_${params.strategy || "all"}_${runs}_${concurrency}`;
   const tempRoot = join(tmpdir(), logDirName);
   
   const successDir = join(tempRoot, "success");
-  await mkdir(successDir);
+  await mkdir(successDir, { recursive: true });
   const failDir = join(tempRoot, "fail");
-  await mkdir(failDir);
+  await mkdir(failDir, { recursive: true });
 
   // Write metadata file
   const metadata = {
     timestamp: now.toISOString(),
     config: {
+      provider: params.provider,
       model: params.model,
       strategy: params.strategy || "all",
       runs,
