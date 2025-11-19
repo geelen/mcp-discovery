@@ -167,6 +167,22 @@ src/
 └── core/           Core tool execution loop
 ```
 
+### Log Analysis
+
+A standalone utility is included to analyze logs from benchmark runs. It generates a color-coded report grouping failures by prompt and error type.
+
+```bash
+# Analyze a specific log directory
+bun src/stats.ts /var/folders/xx/yyyy/T/mcp_discovery_run_id
+```
+
+Features:
+- Groups failures by prompt
+- Extracts returned answers for failed expectations
+- Identifies system errors (JSON parsing, tool validation)
+- Calculates success rates per prompt
+- Supports legacy and metadata-based log formats
+
 ## Contributing
 
 To develop on this project locally:
